@@ -18,10 +18,10 @@ type Defect struct {
 type assertFail struct{ msg string }
 
 // Abort raises a defect.
-func Abort(code, msg string) { panic(&Defect{Code: code, Msg: msg}) }
+func Abort(code, msg string) { raise(&Defect{Code: code, Msg: msg}) }
 
 func panicInternal(format string, args ...any) {
-	panic(&Defect{Code: "R0100", Msg: "internal runtime error: " + fmt.Sprintf(format, args...)})
+	raise(&Defect{Code: "R0100", Msg: "internal runtime error: " + fmt.Sprintf(format, args...)})
 }
 
 var inTest bool
@@ -32,13 +32,17 @@ func Assert(cond Value, src string) {
 		return
 	}
 	if inTest {
-		panic(&assertFail{msg: "assertion failed: " + src})
+		raise(&assertFail{msg: "assertion failed: " + src})
 	}
-	Abort("T0001", "assertion failed: "+src)
+	Abort("R0108", "assertion failed outside a test: "+src)
 }
 
 // FuncNames maps generated Go function names to Pinion names (set by codegen).
 var FuncNames = map[string]string{}
+
+// LineCols maps "file:line" (as in //line markers) to the column of the
+// first statement on that line (set by codegen).
+var LineCols = map[string]int{}
 
 // Test is a compiled test block.
 type Test struct {
@@ -71,9 +75,13 @@ func piStack() (at string, line, col int, stack []string) {
 		f, more := frames.Next()
 		if strings.HasSuffix(f.File, ".pi") && isPinionFrame(f.Function) {
 			file := strings.TrimPrefix(f.File, "pinionprog/")
-			loc := fmt.Sprintf("%s:%d", file, f.Line)
+			c := LineCols[file+":"+strconv.Itoa(f.Line)]
+			if c == 0 {
+				c = 1
+			}
+			loc := fmt.Sprintf("%s:%d:%d", file, f.Line, c)
 			if at == "" {
-				at, line = file, f.Line
+				at, line, col = file, f.Line, c
 			}
 			stack = append(stack, loc+" "+pinionName(f.Function))
 		}
@@ -81,7 +89,10 @@ func piStack() (at string, line, col int, stack []string) {
 			break
 		}
 	}
-	return at, line, 1, stack
+	if col == 0 {
+		col = 1
+	}
+	return at, line, col, stack
 }
 
 func isPinionFrame(fn string) bool {
@@ -99,12 +110,19 @@ func isPinionFrame(fn string) bool {
 
 func report(d *Defect) {
 	flushStdout()
+	writeDiag(d.Code, d.Msg)
+}
+
+func writeDiag(code, msg string) {
 	file, line, col, stack := piStack()
 	if stack == nil {
 		stack = []string{}
 	}
-	out := map[string]any{"schema": "pinion.runtime/1", "code": d.Code, "file": file,
-		"at": []int{line, col}, "msg": d.Msg, "stack": stack}
+	out := map[string]any{"schema": "pinion.runtime/1", "code": code, "file": file,
+		"at": []int{line, col}, "msg": msg, "stack": stack}
+	if s := snapshotJSON(); s != nil {
+		out["snapshot"] = s
+	}
 	writeJSONLine(out)
 }
 
@@ -154,6 +172,9 @@ func Main(mainFn func() Value, tests []Test) {
 
 func runTest(t Test) {
 	inTest = true
+	if len(t.Effects) == 0 {
+		SnapOn = true // hermetic test: values cannot come from the real world
+	}
 	captured := setupTest(t.Effects)
 	code := 0
 	func() {
@@ -162,12 +183,7 @@ func runTest(t Test) {
 				switch x := r.(type) {
 				case *assertFail:
 					flushStdout()
-					file, line, col, stack := piStack()
-					if stack == nil {
-						stack = []string{}
-					}
-					writeJSONLine(map[string]any{"schema": "pinion.runtime/1", "code": "T0001", "file": file,
-						"at": []int{line, col}, "msg": x.msg, "stack": stack})
+					writeDiag("T0001", x.msg)
 					code = 3
 				case *Defect:
 					report(x)

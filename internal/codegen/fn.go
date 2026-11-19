@@ -52,6 +52,10 @@ func (g *fnGen) linePos() string {
 	if g.p.opts.PathMap != nil {
 		f = g.p.opts.PathMap(f)
 	}
+	key := f + ":" + strconv.Itoa(g.pos.Line)
+	if c, ok := g.p.lineCols[key]; !ok || g.pos.Col < c {
+		g.p.lineCols[key] = g.pos.Col
+	}
 	return fmt.Sprintf("/*line %s:%d:%d*/", f, g.pos.Line, g.pos.Col)
 }
 

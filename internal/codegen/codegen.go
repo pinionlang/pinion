@@ -38,13 +38,14 @@ type module struct {
 }
 
 type program struct {
-	opts  Options
-	mods  map[string]*module
-	order []*module
-	out   strings.Builder
-	inits strings.Builder
-	names map[string]string // go func name -> pinion name
-	tests []string
+	opts     Options
+	mods     map[string]*module
+	order    []*module
+	out      strings.Builder
+	inits    strings.Builder
+	names    map[string]string // go func name -> pinion name
+	lineCols map[string]int    // "file:line" -> leftmost statement column
+	tests    []string
 }
 
 var stdModules = map[string]bool{"fs": true, "env": true, "io": true, "time": true, "rand": true, "json": true}
@@ -69,7 +70,7 @@ func Generate(files []*ast.File, opts Options) ([]byte, error) {
 	if opts.RuntimeImport == "" {
 		opts.RuntimeImport = "pinionprog/pinionrt"
 	}
-	p := &program{opts: opts, mods: map[string]*module{}, names: map[string]string{}}
+	p := &program{opts: opts, mods: map[string]*module{}, names: map[string]string{}, lineCols: map[string]int{}}
 	for _, f := range files {
 		m := &module{path: f.Module, file: f, prefix: mangle(f.Module),
 			fns: map[string]*ast.FnDecl{}, types: map[string]*ast.TypeDecl{}, enums: map[string]*ast.EnumDecl{},
@@ -143,6 +144,14 @@ func Generate(files []*ast.File, opts Options) ([]byte, error) {
 	sort.Strings(keys)
 	for _, k := range keys {
 		fmt.Fprintf(&b, "\trt.FuncNames[%q] = %q\n", k, p.names[k])
+	}
+	keys = keys[:0]
+	for k := range p.lineCols {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Fprintf(&b, "\trt.LineCols[%q] = %d\n", k, p.lineCols[k])
 	}
 	b.WriteString("}\n\n")
 	b.WriteString("func main() {\n")
@@ -337,11 +346,24 @@ func (p *program) genFn(m *module, owner *ast.TypeDecl, d *ast.FnDecl) {
 		goName, piName = m.fnName(d.Name), p.qualName(m, d.Name)
 	}
 	p.names[goName] = piName
+	var snapNames, snapArgs []string
 	for _, pr := range d.Params {
 		gn := g.declare(pr.Name, false)
 		params = append(params, gn+" rt.Value")
+		snapNames = append(snapNames, strconv.Quote(pr.Name))
+		snapArgs = append(snapArgs, gn)
 	}
 	g.indent = 1
+	// value snapshots (DESIGN 5.2): only installed when enabled at run time
+	hasSelf, selfV := "false", "nil"
+	if owner != nil && !d.IsInit {
+		hasSelf, selfV = "true", "self"
+	}
+	snapNamesV := "nil"
+	if len(snapNames) > 0 {
+		snapNamesV = "[]string{" + strings.Join(snapNames, ", ") + "}"
+	}
+	g.buf.WriteString("\tif rt.SnapOn {\n\t\tdefer rt.SnapExit(" + strings.Join(append([]string{hasSelf, selfV, snapNamesV}, snapArgs...), ", ") + ")\n\t}\n")
 	g.pos = d.Body.Pos
 	val := g.blockValue(d.Body)
 	g.emit("return %s", val)

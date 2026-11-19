@@ -1,6 +1,6 @@
 # Mini PinionBench results
 
-- date: 2026-11-20T01:20:41+0900  
+- date: 2026-11-20T07:45:03+0900  
 - machine: Darwin arm64  
 - runs per measurement: 5 (median wall time, includes process start)  
 - tokens: tiktoken cl100k_base  
@@ -10,11 +10,11 @@
 
 | task | pinion | python | go | ts | outputs match |
 |---|---:|---:|---:|---:|---|
-| fib | 32 | 149 | 18 | 44 | yes |
-| json_roundtrip | 76 | 94 | 39 | 65 | yes |
-| loop_sum | 186 | 536 | 14 | 207 | yes |
-| sort | 213 | 214 | 76 | 168 | yes |
-| wordfreq | 100 | 170 | 34 | 127 | yes |
+| fib | 40 | 153 | 11 | 51 | yes |
+| json_roundtrip | 86 | 97 | 39 | 65 | yes |
+| loop_sum | 193 | 566 | 18 | 209 | yes |
+| sort | 230 | 245 | 75 | 172 | yes |
+| wordfreq | 110 | 178 | 33 | 133 | yes |
 
 ## Source size (lines / bytes / tokens)
 

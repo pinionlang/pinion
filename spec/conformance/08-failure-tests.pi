@@ -118,3 +118,9 @@ test "hangs" {
 test "still runs" {
   assert true
 }
+
+//# case: assert-outside-test-aborts
+//# expect: abort R0108
+fn main() {
+  assert 1 == 2
+}

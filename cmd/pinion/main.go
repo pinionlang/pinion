@@ -21,7 +21,7 @@ import (
 const usage = `usage:
   pinion run [--snapshot] [--no-check] <file.pi | project-dir> [args...]
   pinion build [-o out] [--emit go] [--no-check] <file.pi | project-dir>
-  pinion test [--json] [--no-check] [path]
+  pinion test [--json] [--snapshot] [--no-check] [path]
   pinion check [--json] <path>
   pinion fmt [-w] <files...>
   pinion outline <path>
@@ -178,6 +178,7 @@ func copyFile(src, dst string) error {
 func cmdTest(args []string) int {
 	fs := flag.NewFlagSet("test", flag.ExitOnError)
 	asJSON := fs.Bool("json", false, "emit pinion.test/1 JSON")
+	snapshot := fs.Bool("snapshot", false, "include value snapshots also for tests declaring real effects")
 	noCheck := fs.Bool("no-check", false, "skip the static checker")
 	fs.Parse(args)
 	path := "."
@@ -194,7 +195,11 @@ func cmdTest(args []string) int {
 		return 1
 	}
 	wd, _ := os.Getwd()
-	res, err := driver.RunTests(bin, wd, nil)
+	var env []string
+	if *snapshot {
+		env = append(os.Environ(), "PINION_SNAPSHOT=1")
+	}
+	res, err := driver.RunTests(bin, wd, env)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
