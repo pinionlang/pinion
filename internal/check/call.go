@@ -417,6 +417,9 @@ func (c *checker) methodCall(recv *Type, mem *ast.MemberExpr, e *ast.CallExpr, e
 			m[tp] = r.Args[i]
 		}
 	}
+	if r.K == KMutMap && name == "inc" && !c.unify(r.Args[1], intT) {
+		c.errorf("E1201", mem.Pos, "inc needs a MutMap with Int values, got %s", typeString(r))
+	}
 	return c.callFn(fi, m, e, exp)
 }
 

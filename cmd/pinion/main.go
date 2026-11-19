@@ -344,6 +344,7 @@ func cmdOutline(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
+	p.Check() // annotates script mains with their inferred effects
 	fmt.Print(outline.Outline(p.Files))
 	return 0
 }

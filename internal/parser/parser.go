@@ -80,6 +80,8 @@ type parser struct {
 
 	silent      int
 	failed      bool
+	script      []scriptItem
+	scriptStmts int
 	lastErrLine int
 	lastErrFile string
 }
@@ -246,6 +248,7 @@ func (p *parser) parseFile(f *ast.File) {
 	for {
 		p.skipNL()
 		if p.at(token.EOF) {
+			p.finishScript(f)
 			return
 		}
 		start := p.i
@@ -327,6 +330,10 @@ func (p *parser) parseTopDecl(f *ast.File) {
 		td.Body = p.parseBlock()
 		f.Decls = append(f.Decls, td)
 	case token.KwLet, token.KwVar:
+		if !pub {
+			p.topLet(f, startPos, doc)
+			return
+		}
 		ld := &ast.LetDecl{Pos: startPos, Doc: doc, Pub: pub, Var: p.at(token.KwVar)}
 		p.next()
 		ld.Name, _ = p.ident(false)
@@ -337,9 +344,103 @@ func (p *parser) parseTopDecl(f *ast.File) {
 		ld.Value = p.parseExpr()
 		f.Decls = append(f.Decls, ld)
 	default:
-		p.unexpected("declaration")
-		p.sync()
+		if pub {
+			p.unexpected("declaration")
+			p.sync()
+			return
+		}
+		st := p.parseStmt()
+		p.script = append(p.script, scriptItem{stmt: st})
+		p.scriptStmts++
 	}
+}
+
+// scriptItem is a top-level statement in source order. Top-level `let`/`var`
+// are recorded as both a LetDecl (normal mode) and a LetStmt (script mode).
+type scriptItem struct {
+	stmt ast.Stmt
+	decl *ast.LetDecl // nil when the let cannot be a declaration (pattern, else)
+}
+
+// topLet parses a non-pub top-level let/var. It stays a LetDecl unless the
+// file turns out to be a script (finishScript).
+func (p *parser) topLet(f *ast.File, pos token.Pos, doc string) {
+	if n := p.peek(2).Kind; p.peek(1).Kind != token.Ident || (n != token.Colon && n != token.Assign) {
+		p.script = append(p.script, scriptItem{stmt: p.parseStmt()}) // pattern: script only
+		return
+	}
+	ld := &ast.LetDecl{Pos: pos, Doc: doc, Var: p.at(token.KwVar)}
+	p.next()
+	var npos token.Pos
+	ld.Name, npos = p.ident(false)
+	if p.accept(token.Colon) {
+		ld.Type = p.parseType()
+	}
+	p.expect(token.Assign)
+	ld.Value = p.parseExpr()
+	ls := &ast.LetStmt{Pos: pos, Var: ld.Var, Pat: &ast.BindPat{Pos: npos, Name: ld.Name}, Type: ld.Type, Value: ld.Value}
+	it := scriptItem{stmt: ls}
+	if p.accept(token.KwElse) {
+		if p.at(token.LBrace) {
+			ls.Else = &ast.BlockExpr{Block: p.parseBlock()}
+		} else {
+			ls.Else = p.parseExpr()
+		}
+	} else {
+		it.decl = ld
+		f.Decls = append(f.Decls, ld)
+	}
+	p.script = append(p.script, it)
+}
+
+// finishScript applies script mode (DESIGN 3.20): a file without `fn main`
+// that has top-level statements gets an implicit main made of all top-level
+// statements and let/var in order.
+func (p *parser) finishScript(f *ast.File) {
+	if p.scriptStmts == 0 {
+		for _, it := range p.script {
+			if it.decl == nil && p.silent == 0 {
+				p.d.Errorf("E0001", it.stmt.GetPos(), "top-level let with a pattern or else is only allowed in a script (a file with top-level statements and no fn main)")
+			}
+		}
+		return
+	}
+	var first ast.Stmt
+	for _, it := range p.script {
+		if it.decl == nil {
+			if _, isLet := it.stmt.(*ast.LetStmt); !isLet {
+				first = it.stmt
+				break
+			}
+		}
+	}
+	for _, d := range f.Decls {
+		if fd, ok := d.(*ast.FnDecl); ok && fd.Name == "main" {
+			p.d.Errorf("E0001", first.GetPos(), "top-level statement in a file with fn main; move it into main")
+			return
+		}
+	}
+	if f.Module != "" && f.Module != "main" {
+		p.d.Errorf("E0001", first.GetPos(), "top-level statements are only allowed in the entry file (main.pi or a single-file program)")
+		return
+	}
+	isLetDecl := map[*ast.LetDecl]bool{}
+	body := &ast.Block{Pos: p.script[0].stmt.GetPos(), End: p.tok().Pos}
+	for _, it := range p.script {
+		if it.decl != nil {
+			isLetDecl[it.decl] = true
+		}
+		body.Stmts = append(body.Stmts, it.stmt)
+	}
+	var decls []ast.Decl
+	for _, d := range f.Decls {
+		if ld, ok := d.(*ast.LetDecl); ok && isLetDecl[ld] {
+			continue
+		}
+		decls = append(decls, d)
+	}
+	f.Decls = append(decls, &ast.FnDecl{Pos: body.Pos, Name: "main", Body: body, Script: true})
+	f.Script = true
 }
 
 func (p *parser) parseTypeParams() []*ast.TypeParam {

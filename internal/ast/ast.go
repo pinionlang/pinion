@@ -18,6 +18,7 @@ type File struct {
 	Imports  []*Import
 	Decls    []Decl
 	Comments []*Comment // all comments (for the formatter), in source order
+	Script   bool       // script mode: top-level statements became an implicit fn main
 }
 
 type Comment struct {
@@ -79,6 +80,7 @@ type FnDecl struct {
 	Ret        TypeExpr // nil => ()
 	Effects    []Effect
 	Body       *Block // nil for interface signatures
+	Script     bool   // implicit main of a script; Effects are inferred by the checker
 }
 
 type Effect struct {

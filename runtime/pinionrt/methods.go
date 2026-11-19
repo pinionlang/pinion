@@ -10,12 +10,17 @@ import (
 
 // builtin method parameter names (only needed when called with named args).
 var builtinParams = map[string][]string{
-	"div":     {"b", "scale", "round"},
-	"round":   {"scale", "round"},
-	"slice":   {"start", "end"},
-	"fold":    {"init", "f"},
-	"set":     {"k", "v"},
-	"replace": {"old", "new"},
+	"div":       {"b", "scale", "round"},
+	"round":     {"scale", "round"},
+	"slice":     {"start", "end"},
+	"fold":      {"init", "f"},
+	"set":       {"k", "v"},
+	"replace":   {"old", "new"},
+	"get_or":    {"k", "d"},
+	"update":    {"k", "default", "f"},
+	"insert":    {"i", "x"},
+	"pad_left":  {"n", "ch"},
+	"pad_right": {"n", "ch"},
 }
 
 func normArgs(name string, names []string, args []Value) []Value {
@@ -284,6 +289,20 @@ func strMethod(s string, name string, a []Value) Value {
 		return af
 	case "to_str":
 		return s
+	case "pad_left", "pad_right":
+		ch := " "
+		if len(a) > 1 && a[1] != nil {
+			ch = a[1].(string)
+		}
+		n := a[0].(int64) - int64(utf8.RuneCountInString(s))
+		if n <= 0 || ch == "" {
+			return s
+		}
+		pad := []rune(strings.Repeat(ch, int(n)))[:n]
+		if name == "pad_left" {
+			return string(pad) + s
+		}
+		return s + string(pad)
 	}
 	return noMethod("Str", name)
 }
@@ -421,6 +440,76 @@ func seqMethod(xs []Value, name string, a []Value) (Value, bool) {
 			}
 		}
 		return NewList(out), true
+	case "count_by":
+		out := &Map{}
+		for _, x := range xs {
+			k := Call(a[0], x)
+			i, added := out.keys.add(k)
+			if added {
+				out.vals = append(out.vals, int64(1))
+			} else {
+				out.vals[i] = out.vals[i].(int64) + 1
+			}
+		}
+		return out, true
+	case "group_by":
+		out := &Map{}
+		var groups [][]Value
+		for _, x := range xs {
+			i, added := out.keys.add(Call(a[0], x))
+			if added {
+				groups = append(groups, nil)
+			}
+			groups[i] = append(groups[i], x)
+		}
+		for _, g := range groups {
+			out.vals = append(out.vals, NewList(g))
+		}
+		return out, true
+	case "take", "drop":
+		n := a[0].(int64)
+		if n < 0 {
+			Abort("R0102", name+": negative count")
+		}
+		n = min(n, int64(len(xs)))
+		if name == "take" {
+			return NewList(append([]Value(nil), xs[:n]...)), true
+		}
+		return NewList(append([]Value(nil), xs[n:]...)), true
+	case "max_by", "min_by":
+		var best, bestK Value
+		for i, x := range xs {
+			k := Call(a[0], x)
+			c := 0
+			if i > 0 {
+				c = Compare(k, bestK)
+			}
+			if i == 0 || (name == "max_by" && c > 0) || (name == "min_by" && c < 0) {
+				best, bestK = x, k
+			}
+		}
+		if best == nil {
+			return None, true
+		}
+		return best, true
+	case "sum_by":
+		if len(xs) == 0 {
+			return int64(0), true
+		}
+		acc := Call(a[0], xs[0])
+		for _, x := range xs[1:] {
+			acc = Add(acc, Call(a[0], x))
+		}
+		return acc, true
+	case "index_of":
+		for i, x := range xs {
+			if Equal(x, a[0]) {
+				return int64(i), true
+			}
+		}
+		return None, true
+	case "distinct":
+		return NewList(append([]Value(nil), NewSetFrom(xs).s.items...)), true
 	}
 	return nil, false
 }
@@ -449,6 +538,39 @@ func listMethod(l *List, name string, a []Value) Value {
 			return UnitV
 		case "freeze":
 			return NewList(append([]Value(nil), l.Items...))
+		case "remove_at":
+			i := a[0].(int64)
+			if i < 0 || i >= int64(len(l.Items)) {
+				Abort("R0102", "index "+Display(i)+" out of range for length "+Display(int64(len(l.Items))))
+			}
+			l.mutate()
+			x := l.Items[i]
+			l.Items = append(l.Items[:i:i], l.Items[i+1:]...)
+			return x
+		case "insert":
+			i := a[0].(int64)
+			if i < 0 || i > int64(len(l.Items)) {
+				Abort("R0102", "index "+Display(i)+" out of range for insert into length "+Display(int64(len(l.Items))))
+			}
+			l.mutate()
+			out := make([]Value, 0, len(l.Items)+1)
+			out = append(append(append(out, l.Items[:i]...), a[1]), l.Items[i:]...)
+			l.Items = out
+			return UnitV
+		case "retain":
+			l.mutate()
+			l.iter++
+			var keep []Value
+			func() {
+				defer func() { l.iter-- }()
+				for _, x := range l.Items {
+					if Truthy(Call(a[0], x)) {
+						keep = append(keep, x)
+					}
+				}
+			}()
+			l.Items = keep
+			return UnitV
 		}
 	}
 	// snapshot so callbacks mutating a MutList are detected
@@ -487,6 +609,24 @@ func mapMethod(m *Map, name string, a []Value) Value {
 		return NewList(out)
 	case "to_mut":
 		return m.copyAs(true)
+	case "get_or":
+		if v, ok := m.Get(a[0]); ok {
+			return v
+		}
+		return a[1]
+	case "map_values", "filter":
+		m.iter++
+		defer func() { m.iter-- }()
+		out := &Map{}
+		for i, k := range m.keys.items {
+			v := m.vals[i]
+			if name == "map_values" {
+				out.put(k, Call(a[0], v))
+			} else if Truthy(Call(a[0], k, v)) {
+				out.put(k, v)
+			}
+		}
+		return out
 	}
 	if m.Mut {
 		switch name {
@@ -511,23 +651,35 @@ func mapMethod(m *Map, name string, a []Value) Value {
 			return UnitV
 		case "freeze":
 			return m.copyAs(false)
+		case "inc":
+			m.mutate()
+			i, added := m.keys.add(a[0])
+			if added {
+				m.vals = append(m.vals, int64(1))
+			} else {
+				m.vals[i] = Add(m.vals[i], int64(1))
+			}
+			return UnitV
+		case "update":
+			old, ok := m.Get(a[0])
+			if !ok {
+				old = a[1]
+			}
+			m.iter++
+			nv := func() Value {
+				defer func() { m.iter-- }()
+				return Call(a[2], old)
+			}()
+			m.mutate()
+			m.put(a[0], nv)
+			return UnitV
 		}
 	}
 	switch name {
-	case "each", "any", "all", "map", "filter", "fold", "find":
+	case "each", "any", "all", "map", "fold", "find":
 		ents := mapMethod(m, "entries", nil).(*List).Items
 		m.iter++
 		defer func() { m.iter-- }()
-		if name == "filter" {
-			out := &Map{}
-			for _, e := range ents {
-				if Truthy(Call(a[0], e)) {
-					t := e.(*Tuple)
-					out.put(t.Elems[0], t.Elems[1])
-				}
-			}
-			return out
-		}
 		v, _ := seqMethod(ents, name, a)
 		return v
 	}

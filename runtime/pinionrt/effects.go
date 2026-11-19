@@ -172,6 +172,7 @@ func setupTest(real []string) *strings.Builder {
 	if !isReal["rand"] {
 		randStack = []*RandImpl{newRand(0)}
 	}
+	netReal = isReal["net"]
 	return captured
 }
 
@@ -409,6 +410,9 @@ func nowNS() int64 {
 	return t.NowNS
 }
 
+// stdDefaults holds default values of optional std parameters, by index.
+var stdDefaults = map[string]map[int]Value{}
+
 // Std calls a std module function: Std("fs", "read", names, args...).
 func Std(mod, name string, names []string, args ...Value) Value {
 	f, ok := stdFns[mod+"."+name]
@@ -416,7 +420,11 @@ func Std(mod, name string, names []string, args ...Value) Value {
 		panicInternal("std/%s has no function %s", mod, name)
 	}
 	optional := map[string]bool{"env.fake": true, "io.fake": true}[mod+"."+name]
+	defs := stdDefaults[mod+"."+name]
 	vals := Reorder(mod+"."+name, f.params, names, args, func(i int) (Value, bool) {
+		if d, ok := defs[i]; ok {
+			return d, true
+		}
 		if optional {
 			return nil, true
 		}

@@ -1,0 +1,235 @@
+// 규칙: DESIGN.md 3.4.1(컬렉션 보조 메서드), 3.20(스크립트 모드), 3.21(std/http)
+
+//# case: http-routing
+//# expect: tests
+//# test: routes -> passed
+//# test: listen-in-test -> aborted R0109
+import std/http
+
+data Book {
+  pub id: Int
+  pub title: Str
+}
+
+data NewBook {
+  pub title: Str
+}
+
+class Shelf {
+  mut books: MutMap<Int, Book> = MutMap<Int, Book>()
+  pub mut fn add(title: Str) -> Book {
+    let b = Book(id: self.books.len() + 1, title: title)
+    self.books.set(b.id, b)
+    b
+  }
+  pub fn get(id: Int) -> Book? { self.books.get(id) }
+}
+
+fn routes(shelf: Shelf) -> http.App {
+  let app = http.App()
+  app.get("/books/new", req => http.text("form"))
+  app.get("/books/:id", req => {
+    let id = Int.parse(req.params.get_or("id", "")).ok() else { return http.error(400, "bad id") }
+    let b = shelf.get(id) else { return http.error(404, "no book {id}") }
+    http.json(b)
+  })
+  app.post("/books", req => {
+    let nb = req.json<NewBook>().ok() else { return http.error(400, "bad json") }
+    http.json(shelf.add(nb.title), status: 201)
+  })
+  app.delete("/books/:id", req => http.empty(204))
+  app.get("/search", req => http.text("q={req.query.get_or("q", "")} ua={req.headers.get_or("user-agent", "")}"))
+  app
+}
+
+test "routes" {
+  let app = routes(Shelf())
+  let created = app.handle(http.request("POST", "/books", body: "\{\"title\":\"Dune\"\}"))
+  assert created.status == 201
+  assert created.headers.get("content-type") == Some("application/json")
+  let b = app.handle(http.request("GET", "/books/1")).json<Book>()
+  assert b == Ok(Book(id: 1, title: "Dune"))
+  assert app.handle(http.request("GET", "/books/new")).body == "form"
+  assert app.handle(http.request("GET", "/books/x")).status == 400
+  assert app.handle(http.request("GET", "/books/7")).body == "\{\"error\":\"no book 7\"\}"
+  assert app.handle(http.request("POST", "/books", body: "nope")).status == 400
+  assert app.handle(http.request("DELETE", "/books/1")).status == 204
+  let missing = app.handle(http.request("GET", "/authors"))
+  assert missing.status == 404
+  assert missing.body == "\{\"error\":\"not found\"\}"
+  let wrong = app.handle(http.request("PUT", "/books/1"))
+  assert wrong.status == 405
+  assert wrong.body == "\{\"error\":\"method not allowed\"\}"
+  let s = app.handle(http.request("GET", "/search?q=a%20b", headers: {"User-Agent": "t"}))
+  assert s.body == "q=a b ua=t"
+}
+
+test "listen-in-test" {
+  routes(Shelf()).listen(8080)
+}
+
+//# case: http-handler-effects-propagate
+//# expect: error
+import std/http
+import std/fs
+
+fn main() !net {
+  let app = http.App()
+  app.get("/", req => http.text(fs.read("index.html").ok() ?? "")) //~ E3001
+  app.listen(8080)
+}
+
+//# case: http-handler-effects-declared
+//# expect: ok
+import std/http
+import std/fs
+
+fn main() !net !fs {
+  let app = http.App()
+  app.get("/", req => http.text(fs.read("index.html").ok() ?? ""))
+  app.listen(8080)
+}
+
+//# case: http-listen-needs-net
+//# expect: error
+import std/http
+
+fn main() {
+  http.App().listen(8080) //~ E3001
+}
+
+//# case: http-json-needs-encode
+//# expect: error
+import std/http
+
+class Counter { mut n: Int = 0 }
+
+fn show(c: Counter) -> http.Response {
+  http.json(c) //~ E1502
+}
+
+//# case: list-helpers
+//# expect: run
+//# stdout: {"a": 3, "b": 2, "c": 1}
+//# stdout: {1: ["a", "b", "c", "a", "b", "a"]}
+//# stdout: ["a", "b"] ["b", "a"] ["a", "b", "c"]
+//# stdout: a 3|b 2|c 1
+//# stdout: "a" "c" 6
+//# stdout: 2 None
+//# stdout: [0, 1, 4, 9] 10
+//# stdout: 007|ab..
+data Count {
+  pub word: Str
+  pub n: Int
+}
+
+fn main() !io {
+  let words = "a b c a b a".words()
+  let counts = words.count_by(w => w)
+  print(debug(counts))
+  print(debug(words.group_by(w => w.len())))
+  print("{debug(words.take(2))} {debug(words.drop(4))} {debug(words.distinct())}")
+  let cs = counts.keys().map(w => Count(word: w, n: counts.get_or(w, 0)))
+  print(cs.sort_by(c => (-c.n, c.word)).map(c => "{c.word} {c.n}").join("|"))
+  let top = cs.max_by(c => c.n).map(c => c.word) ?? ""
+  let low = cs.min_by(c => c.n).map(c => c.word) ?? ""
+  print("{debug(top)} {debug(low)} {cs.sum_by(c => c.n)}")
+  print("{debug(words.index_of("c"))} {debug(words.index_of("z"))}")
+  print("{debug((0..4).map(i => i * i))} {(1..=4).sum()}")
+  print("{"7".pad_left(3, "0")}|{"ab".pad_right(4, ".")}")
+}
+
+//# case: map-and-mut-helpers
+//# expect: run
+//# stdout: {"x": 20, "y": 10}
+//# stdout: {"x": 2}
+//# stdout: MutMap{"a": 2, "b": 1, "n": 7}
+//# stdout: 1 MutList[100, 2, 4]
+fn main() !io {
+  let m = {"x": 2, "y": 1}
+  print(debug(m.map_values(v => v * 10).filter((k, v) => v > 0)))
+  print(debug(m.filter((k, v) => k == "x")))
+  let tally = MutMap<Str, Int>()
+  for w in ["a", "b", "a"] {
+    tally.inc(w)
+  }
+  tally.update("n", 5, v => v + 1)
+  tally.update("n", 5, v => v + 1)
+  print(debug(tally))
+  let xs = MutList<Int>()
+  for i in 1..6 {
+    xs.push(i)
+  }
+  let first = xs.remove_at(0)
+  xs.insert(0, 100)
+  xs.retain(x => x % 2 == 0)
+  print("{first} {debug(xs)}")
+}
+
+//# case: inc-needs-int-values
+//# expect: error
+fn main() {
+  let names = MutMap<Str, Str>()
+  names.inc("a") //~ E1201
+}
+
+//# case: remove-at-out-of-range
+//# expect: abort R0102
+fn main() {
+  let xs = MutList<Int>()
+  let _ = xs.remove_at(0)
+}
+
+//# case: script-mode
+//# expect: run
+//# stdout: 1 4 9
+//# stdout: total 14
+fn square(x: Int) -> Int { x * x }
+
+var total = 0
+let (a, b) = (2, 3)
+let parts = MutList<Str>()
+for i in 1..=b {
+  parts.push("{square(i)}")
+  total += square(i)
+}
+print(parts.join(" "))
+print("total {total + a - 2}")
+
+//# case: script-locals-are-not-frozen
+//# expect: ok
+var seen = MutSet<Str>()
+let cache = MutMap<Str, Int>()
+seen.add("a")
+cache.set("a", 1)
+
+//# case: script-effects-inferred
+//# expect: run
+//# stdout: no args
+import std/env
+
+let args = env.args()
+let first = args.first() else {
+  print("no args")
+  return
+}
+print(first)
+
+//# case: script-with-main-rejected
+//# expect: error
+fn main() !io {
+  print("hi")
+}
+
+print("top") //~ E0001
+
+//# case: script-not-in-library-module
+//# expect: error
+//# file: src/main.pi
+import util
+
+print(util.twice(2))
+//# file: src/util.pi
+pub fn twice(x: Int) -> Int { x * 2 }
+
+print("side effect") //~ E0001

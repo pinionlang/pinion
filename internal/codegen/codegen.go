@@ -48,7 +48,7 @@ type program struct {
 	tests    []string
 }
 
-var stdModules = map[string]bool{"fs": true, "env": true, "io": true, "time": true, "rand": true, "json": true}
+var stdModules = map[string]bool{"fs": true, "env": true, "io": true, "time": true, "rand": true, "json": true, "http": true}
 
 func mangle(path string) string {
 	if path == "" {
@@ -377,7 +377,9 @@ func (p *program) genTest(m *module, d *ast.TestDecl) {
 	g := p.newFn(m, nil)
 	g.indent = 1
 	g.pos = d.Body.Pos
-	g.blockValue(d.Body)
+	if v := g.blockValue(d.Body); !isConst(v) {
+		g.emit("_ = %s", v) // the last expression statement still runs
+	}
 	g.emit("return rt.UnitV")
 	fmt.Fprintf(&p.out, "func %s() rt.Value {\n%s}\n\n", goName, g.buf.String())
 	var effs []string

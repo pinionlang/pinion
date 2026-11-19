@@ -48,7 +48,7 @@ func (c *checker) checkFn(fi *FnInfo, owner *TypeInfo) {
 	if d == nil || d.Body == nil {
 		return
 	}
-	ctx := &fnCtx{ret: fi.Ret, declared: fi.Eff, owner: owner, mutFn: d.Mut, isInit: d.IsInit}
+	ctx := &fnCtx{ret: fi.Ret, declared: fi.Eff, owner: owner, mutFn: d.Mut, isInit: d.IsInit, infer: d.Script}
 	if owner != nil {
 		ctx.selfT = owner.selfType()
 		ctx.method = !d.IsInit
@@ -73,6 +73,15 @@ func (c *checker) checkFn(fi *FnInfo, owner *TypeInfo) {
 	c.block(d.Body, exp)
 	c.pop()
 	c.fn = nil
+	if d.Script {
+		// script mode: the implicit main declares exactly what it uses
+		fi.Eff = ctx.used
+		d.Effects = nil
+		for _, n := range ctx.used.names() {
+			d.Effects = append(d.Effects, ast.Effect{Pos: d.Pos, Name: n})
+		}
+		return
+	}
 	if !ctx.hadError {
 		if unused := fi.Eff &^ ctx.used; unused != 0 {
 			c.warnUnused(unused, d.Pos, !fi.Pub)

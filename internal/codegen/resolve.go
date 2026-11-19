@@ -214,6 +214,13 @@ func (g *fnGen) call(e *ast.CallExpr) string {
 		if fn.OnOption {
 			return fmt.Sprintf("rt.OptM(%s, %q, %s)", recv, fn.Name, s)
 		}
+		if len(e.TypeArgs) > 0 {
+			var ts []string
+			for _, ta := range e.TypeArgs {
+				ts = append(ts, g.p.typeDesc(g.m, g.owner, nil, ta))
+			}
+			return fmt.Sprintf("rt.MT(%s, %q, []*rt.Type{%s}, %s)", recv, fn.Name, strings.Join(ts, ", "), s)
+		}
 		return fmt.Sprintf("rt.M(%s, %q, %s)", recv, fn.Name, s)
 	}
 	f := g.expr(e.Fn)

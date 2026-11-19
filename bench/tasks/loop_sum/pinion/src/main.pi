@@ -1,7 +1,5 @@
-fn main() !io {
-  var s = 0
-  for i in 1..=5000000 {
-    s += i * i % 1000003
-  }
-  print("sum = {s}")
+var s = 0
+for i in 1..=5000000 {
+  s += i * i % 1000003
 }
+print("sum = {s}")

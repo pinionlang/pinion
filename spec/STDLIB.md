@@ -1,7 +1,7 @@
 # Pinion v0 표준 라이브러리 API
 
 이 문서는 **검사기(시그니처)와 런타임(구현)이 함께 따르는 계약**이다. 의미 규칙은 [DESIGN.md](../docs/DESIGN.md)를 따른다.
-표기: `fn 이름(인자) -> 반환 !효과`. 효과가 없으면 생략한다. `T`, `U`, `K`, `V`는 타입 매개변수다.
+표기: `fn 이름(인자) -> 반환 !효과`. 효과가 없으면 생략한다. `이름: T = 기본값`은 생략할 수 있는 인자다(표준 라이브러리만). `T`, `U`, `K`, `V`는 타입 매개변수다.
 
 ## 기본 제공 (prelude, import 없이 사용)
 
@@ -38,7 +38,7 @@
 `trim() -> Str`, `lower() -> Str`, `upper() -> Str`, `words() -> List<Str>`, `lines() -> List<Str>`, `split(sep: Str) -> List<Str>`,
 `contains(sub: Str) -> Bool`, `starts_with(p: Str) -> Bool`, `ends_with(p: Str) -> Bool`, `index_of(sub: Str) -> Int?`(코드 포인트 위치),
 `count(sub: Str) -> Int`, `replace(old: Str, new: Str) -> Str`, `repeat(n: Int) -> Str`, `to_bytes() -> Bytes`,
-`before(sep: Str) -> Str?`, `after(sep: Str) -> Str?`
+`before(sep: Str) -> Str?`, `after(sep: Str) -> Str?`, `pad_left(n: Int, ch: Str = " ") -> Str`, `pad_right(n: Int, ch: Str = " ") -> Str`(코드 포인트 `n`개가 될 때까지 채움)
 연산: `+`(이어붙이기), 비교(코드 포인트 사전순)
 
 ### `List<T>` (불변)
@@ -47,24 +47,27 @@
 `any(f) -> Bool`, `all(f) -> Bool`, `find(f) -> T?`, `sort() -> List<T>`(T: Ord, 안정), `sort_by<K>(f: fn(T) -> K) -> List<T>`(K: Ord),
 `sum() -> T`(T는 `Int`·`Float`·`Dec`, 빈 리스트면 0), `join(sep: Str) -> Str`(T = `Str`), `contains(x: T) -> Bool`(T: Eq),
 `append(x: T) -> List<T>`, `concat(o: List<T>) -> List<T>`, `reverse() -> List<T>`, `slice(start, end) -> List<T>`,
-`to_set() -> Set<T>`(T: Eq+Hash), `enumerate() -> List<(Int, T)>`
+`to_set() -> Set<T>`(T: Eq+Hash), `enumerate() -> List<(Int, T)>`,
+`count_by<K>(f: fn(T) -> K) -> Map<K, Int>`, `group_by<K>(f: fn(T) -> K) -> Map<K, List<T>>`(키는 처음 나온 순서), `take(n: Int) -> List<T>`, `drop(n: Int) -> List<T>`(음수 `R0102`),
+`max_by<K>(f: fn(T) -> K) -> T?`, `min_by<K>(f) -> T?`(같으면 처음 원소), `sum_by<U>(f: fn(T) -> U) -> U`(빈 리스트면 0), `index_of(x: T) -> Int?`, `distinct() -> List<T>`(처음 나온 순서)
 
 ### `MutList<T>`
-`push(x: T)`, `pop() -> T?`, `set(i: Int, x: T)`, `clear()`, `freeze() -> List<T>` 그리고 `List`의 조회·고차 함수(`len`, `get`, `[i]`, `map`, `filter`, `each`, `fold`, `any`, `all`, `find`, `contains`, `join`, `sum`)
+`push(x: T)`, `pop() -> T?`, `set(i: Int, x: T)`, `clear()`, `freeze() -> List<T>`, `remove_at(i: Int) -> T`(범위 밖 `R0102`), `insert(i: Int, x: T)`(0..=len), `retain(f: fn(T) -> Bool)` 그리고 `List`의 조회·고차 함수 전부(결과는 불변 `List`)
 
 ### `Map<K, V>` (불변, 삽입 순서)
-`len()`, `is_empty()`, `get(k: K) -> V?`, `contains_key(k: K) -> Bool`, `keys() -> List<K>`, `values() -> List<V>`, `entries() -> List<(K, V)>`
+`len()`, `is_empty()`, `get(k: K) -> V?`, `contains_key(k: K) -> Bool`, `keys() -> List<K>`, `values() -> List<V>`, `entries() -> List<(K, V)>`, `get_or(k: K, d: V) -> V`,
+`map_values<U>(f: fn(V) -> U) -> Map<K, U>`, `filter(f: fn(K, V) -> Bool) -> Map<K, V>`
 `for (k, v) in m`
 
 ### `MutMap<K, V>`
-`set(k: K, v: V)`, `remove(k: K) -> V?`, `clear()`, `freeze() -> Map<K, V>` 그리고 `Map`의 조회 메서드
+`set(k: K, v: V)`, `remove(k: K) -> V?`, `clear()`, `freeze() -> Map<K, V>`, `inc(k: K)`(V = `Int`; 없으면 1, 있으면 +1), `update(k: K, default: V, f: fn(V) -> V)`(없으면 `f(default)`) 그리고 `Map`의 조회 메서드(`get_or`, `map_values`, `filter`는 불변 `Map`을 돌려준다)
 
 ### `Set<T>`, `MutSet<T>` (DESIGN 3.15.2)
 `Set`: `len`, `is_empty`, `contains`, `union`, `intersect`, `diff`, `sym_diff`, `is_subset`, `is_disjoint`, `to_list`, `map -> List<U>`, `filter -> Set<T>`, `each`, `any`, `all`, `fold`, `find`
 `MutSet`: `add(x) -> Bool`, `remove(x) -> Bool`, `clear()`, `contains`, `len`, `freeze() -> Set<T>`
 
 ### `Range`
-`a..b`, `a..=b`. `to_list() -> List<Int>`, `rev() -> Range`, `step(n: Int) -> Range`, `contains(x: Int) -> Bool`, `len() -> Int`
+`a..b`, `a..=b`. `to_list() -> List<Int>`, `rev() -> Range`, `step(n: Int) -> Range`, `contains(x: Int) -> Bool`, `len() -> Int` 그리고 `List<Int>`의 조회·고차 함수(`join` 제외). 결과는 `List`: `(0..n).map(i => i * i)`
 
 ### `Bytes`
 `len()`, `[i] -> Int`, `slice(start, end) -> Bytes`, `to_str() -> Result<Str, Utf8Error>`, `Bytes.from_list(xs: List<Int>) -> Bytes`
@@ -113,6 +116,20 @@
 `fn decode<T>(s: Str) -> Result<T, JsonError>` (T: Decode)
 출력은 공백 없는 한 줄 JSON이다.
 
+### `std/http` — 효과 `!net` (DESIGN 3.21)
+```
+data Request  { pub method: Str, pub path: Str, pub params: Map<Str, Str>, pub query: Map<Str, Str>, pub headers: Map<Str, Str>, pub body: Str }
+data Response { pub status: Int, pub body: Str, pub headers: Map<Str, Str> }
+class App
+```
+`fn App() -> App`
+`App`: `get(path: Str, h: fn(Request) -> Response)`, `post`, `put`, `patch`, `delete`(같은 시그니처, 핸들러의 효과를 전달), `handle(req: Request) -> Response`(네트워크 없이 라우팅), `listen(port: Int) !net`(막고 서비스, 핸들러는 직렬 실행)
+`Request.json<T>() -> Result<T, JsonError>`, `Response.json<T>() -> Result<T, JsonError>` (T: Decode, 본문을 디코드)
+`fn request(method: Str, path: Str, body: Str = "", headers: Map<Str, Str> = {}) -> Request` — 테스트용. `path`의 `?` 뒤는 `query`로, 헤더 이름은 소문자로
+`fn json<T>(v: T, status: Int = 200) -> Response` (T: Encode, `content-type: application/json`)
+`fn text(s: Str, status: Int = 200) -> Response` (`text/plain; charset=utf-8`), `fn empty(status: Int) -> Response`, `fn error(status: Int, msg: Str) -> Response` (`{"error": msg}` JSON)
+경로 패턴: `"/books/:id"` → `req.params.get_or("id", "")`. 경로 없음 404 `{"error":"not found"}`, 메서드 없음 405 `{"error":"method not allowed"}`.
+
 ## 테스트 기본값 (DESIGN 3.13 규칙 9)
 
-`io`: 출력 캡처·빈 입력, `fs`: 빈 가상 파일 시스템, `env`: 빈 인자·환경변수, `time`: `946684800`(2000-01-01T00:00:00Z), `rand`: 시드 0.
+`io`: 출력 캡처·빈 입력, `fs`: 빈 가상 파일 시스템, `env`: 빈 인자·환경변수, `time`: `946684800`(2000-01-01T00:00:00Z), `rand`: 시드 0, `net`: 없음(`app.listen`은 `R0109`, `test "x" !net`이면 실제 네트워크).

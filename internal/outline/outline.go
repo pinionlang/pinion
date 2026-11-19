@@ -63,6 +63,9 @@ func writeDecl(b *strings.Builder, d ast.Decl) {
 				bound = effects(d.Effects)[1:]
 			}
 			fmt.Fprintf(b, "%s  effect upper bound: %s\n", in, bound)
+			if d.Script {
+				fmt.Fprintf(b, "%s  script: implicit main from top-level statements (effects inferred)\n", in)
+			}
 		}
 	case *ast.TypeDecl:
 		doc(b, in, d.Doc)

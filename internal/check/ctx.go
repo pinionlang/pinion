@@ -12,6 +12,7 @@ type fnCtx struct {
 	allowAll bool   // test body: every std effect is replaced
 	effCode  string // code for an undeclared effect: E3001 (default) or E3005
 	lambda   bool   // closure: effects are collected, not checked
+	infer    bool   // script main: effects are collected and become the declaration
 	depth    int    // closure nesting depth
 
 	owner    *TypeInfo // enclosing type for methods/init
@@ -35,7 +36,7 @@ func (c *checker) useEffects(e Effects, pos token.Pos) {
 		return
 	}
 	f.used |= e
-	if f.lambda || f.allowAll {
+	if f.lambda || f.allowAll || f.infer {
 		return
 	}
 	if missing := e &^ f.declared; missing != 0 {

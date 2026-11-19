@@ -21,6 +21,15 @@ fn main() -> Result<(), fs.FsError> !io !fs {   // effects after the return type
 }
 ```
 
+## Script mode (shortest form)
+A single file (or `src/main.pi`) with no `fn main` may have top-level statements; they run in order. Top-level `let`/`var` are then ordinary locals (any type, patterns, `let ... else`), the implicit main's effects are inferred, and `return` ends the script. Named functions still declare effects and can't see script locals.
+```pinion
+import std/env
+let args = env.args()
+let name = args.first() ?? "world"
+print("hi {name}")
+```
+
 ## data vs class
 - `data`: value, deeply immutable. Fields may only hold immutable types (no class, no interface, no `Mut*`). Has `==`, JSON, `v.with(field: x)`.
 - `class`: reference with state. Changeable fields are `mut`; only `mut fn` may assign them, and only as `self.field = ...`. No `==`, no `with`, no JSON.
@@ -40,7 +49,7 @@ fn main() -> Result<(), fs.FsError> !io !fs {   // effects after the return type
 - Write `(a ?? 0) + 1` — mixing `??` with other operators needs parentheses.
 
 ## Effects
-- Effects: `!io` (print/stdin), `!fs`, `!env`, `!time`, `!rand`. Every named function declares what its body (and callees, and callbacks passed to `map`/`each`/...) uses. Closures infer theirs.
+- Effects: `!io` (print/stdin), `!fs`, `!env`, `!time`, `!rand`, `!net` (`app.listen`). Every named function declares what its body (and callees, and callbacks passed to `map`/`each`/...) uses. Closures infer theirs.
 - A pure function can be passed where `fn(..) !io` is expected, not the reverse.
 - Tests run hermetically: fake io/fs/env/time/rand by default. `test "name" !fs { }` uses the real file system. Swap fakes inside tests with `with fs: fs.fake(files: {"a.txt": "hi"}) { ... }`.
 - A function's `!fs` means "uses fs"; a test's `!fs` means "use the real fs".
@@ -67,13 +76,33 @@ match s {                           // patterns use bare variant names
 ## Collections
 - `List<T>`, `Map<K, V>`, `Set<T>` are immutable; `MutList`, `MutMap`, `MutSet` are mutable references; `.freeze()` copies to immutable.
 - Map/Set iterate in insertion order. `xs[i]` aborts out of range; `xs.get(i)` returns `T?`.
-- `map`/`filter`/`each`/`fold` call the callback once per element in order; `sort_by(key)` is stable.
+- `map`/`filter`/`each`/`fold` call the callback once per element in order; `sort_by(key)` is stable; tuple keys sort lexicographically: `sort_by(e => (-e.n, e.name))`.
+- Prefer helpers over loops: `xs.count_by(f)`, `group_by(f)`, `take(n)`, `drop(n)`, `max_by(f)`/`min_by(f)` (-> `T?`), `sum_by(f)`, `index_of(x)`, `distinct()`; `m.get_or(k, d)`, `m.map_values(f)`, `m.filter((k, v) => ...)`; `mm.inc(k)`, `mm.update(k, default, v => ...)`; `ml.remove_at(i)`, `insert(i, x)`, `retain(f)`; `(0..n).map(i => ...)` gives a `List`; `s.pad_left(n, "0")`.
+- No tuple field access: destructure `for (k, v) in m` / `let (a, b) = t`.
 - Closures capture by value; you can't assign a captured `var` — accumulate in a `MutList`/`MutMap`.
 
 ## Strings and numbers
 - `Str` length/slice are in code points; no `s[i]`. `lines()`, `words()`, `split`, `trim`.
 - `{` in a string starts interpolation. Write literal braces as `\{` `\}`: `"\{\"id\":1\}"` is the JSON `{"id":1}`.
 - `Int` is 64-bit and overflow aborts. `Float` is always finite. `Dec` (`12.30d`) is exact; divide with `a.div(b, scale: 2, round: Round.HalfEven)`. No mixing numeric types: `n.to_float()`.
+
+## HTTP (`import std/http`)
+```pinion
+let app = http.App()
+app.get("/books/:id", req => {                 // also post/put/patch/delete
+  let id = Int.parse(req.params.get_or("id", "")).ok() else { return http.error(400, "bad id") }
+  http.json(Book(id: id, title: "t"))          // http.json(v, status: 201), http.text(s), http.empty(204)
+})
+app.post("/books", req => {
+  let b = req.json<NewBook>().ok() else { return http.error(400, "bad json") }   // type arg required
+  http.json(b, status: 201)
+})
+app.listen(8080)                               // !net; blocks
+```
+- `req.method`, `req.path`, `req.params`, `req.query`, `req.headers` (lowercase names), `req.body`; `resp.status`, `resp.body`, `resp.headers`, `resp.json<T>()`.
+- Unknown path -> 404 `{"error":"not found"}`; wrong method -> 405. Literal segments beat `:params`.
+- Registering a handler carries its effects (handler uses fs -> caller declares `!fs`). Handlers run one at a time, so captured class/`Mut*` state is safe.
+- Tests have no network (`listen` aborts R0109). Test routing: `app.handle(http.request("POST", "/books", body: "..."))`.
 
 ## Modules
 - One file = one module. `src/todo/store.pi` is `import todo/store`, used as `store.Todo`, `store.load()`. No selective imports, no cycles. Without `pub`, a name is private to its file.

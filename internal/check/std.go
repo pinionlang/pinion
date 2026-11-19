@@ -2,6 +2,7 @@ package check
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"unicode"
@@ -372,7 +373,8 @@ func buildStd() *stdEnv {
 		"upper() -> Str", "words() -> List<Str>", "lines() -> List<Str>", "split(sep: Str) -> List<Str>",
 		"contains(sub: Str) -> Bool", "starts_with(p: Str) -> Bool", "ends_with(p: Str) -> Bool",
 		"index_of(sub: Str) -> Int?", "count(sub: Str) -> Int", "replace(old: Str, new: Str) -> Str",
-		"repeat(n: Int) -> Str", "to_bytes() -> Bytes", "before(sep: Str) -> Str?", "after(sep: Str) -> Str?")
+		"repeat(n: Int) -> Str", "to_bytes() -> Bytes", "before(sep: Str) -> Str?", "after(sep: Str) -> Str?",
+		`pad_left(n: Int, ch: Str = " ") -> Str`, `pad_right(n: Int, ch: Str = " ") -> Str`)
 	listCommon := []string{"len() -> Int", "is_empty() -> Bool", "get(i: Int) -> T?", "first() -> T?",
 		"last() -> T?", "map<U>(f: fn(T) -> U) -> List<U>", "filter(f: fn(T) -> Bool) -> List<T>",
 		"each(f: fn(T))", "fold<U>(init: U, f: fn(U, T) -> U) -> U", "any(f: fn(T) -> Bool) -> Bool",
@@ -380,18 +382,22 @@ func buildStd() *stdEnv {
 		"sort_by<K>(f: fn(T) -> K) -> List<T>", "sum() -> T", "join(sep: Str) -> Str",
 		"contains(x: T) -> Bool", "append(x: T) -> List<T>", "concat(o: List<T>) -> List<T>",
 		"reverse() -> List<T>", "slice(start: Int, end: Int) -> List<T>", "to_set() -> Set<T>",
-		"enumerate() -> List<(Int, T)>"}
+		"enumerate() -> List<(Int, T)>", "count_by<K>(f: fn(T) -> K) -> Map<K, Int>",
+		"group_by<K>(f: fn(T) -> K) -> Map<K, List<T>>", "take(n: Int) -> List<T>", "drop(n: Int) -> List<T>",
+		"max_by<K>(f: fn(T) -> K) -> T?", "min_by<K>(f: fn(T) -> K) -> T?", "sum_by<U>(f: fn(T) -> U) -> U",
+		"index_of(x: T) -> Int?", "distinct() -> List<T>"}
 	e.methods[KList] = e.table(tT, listCommon...)
 	e.recvParams[KList] = tT
 	e.methods[KMutList] = merge(e.table(tT, "push(x: T)", "pop() -> T?", "set(i: Int, x: T)", "clear()",
-		"freeze() -> List<T>"), e.table(tT, listCommon...))
+		"freeze() -> List<T>", "remove_at(i: Int) -> T", "insert(i: Int, x: T)", "retain(f: fn(T) -> Bool)"), e.table(tT, listCommon...))
 	e.recvParams[KMutList] = tT
 	mapCommon := []string{"len() -> Int", "is_empty() -> Bool", "get(k: K) -> V?", "contains_key(k: K) -> Bool",
-		"keys() -> List<K>", "values() -> List<V>", "entries() -> List<(K, V)>"}
+		"keys() -> List<K>", "values() -> List<V>", "entries() -> List<(K, V)>", "get_or(k: K, d: V) -> V",
+		"map_values<U>(f: fn(V) -> U) -> Map<K, U>", "filter(f: fn(K, V) -> Bool) -> Map<K, V>"}
 	e.methods[KMap] = e.table(tKV, mapCommon...)
 	e.recvParams[KMap] = tKV
 	e.methods[KMutMap] = merge(e.table(tKV, "set(k: K, v: V)", "remove(k: K) -> V?", "clear()",
-		"freeze() -> Map<K, V>"), e.table(tKV, mapCommon...))
+		"freeze() -> Map<K, V>", "inc(k: K)", "update(k: K, default: V, f: fn(V) -> V)"), e.table(tKV, mapCommon...))
 	e.recvParams[KMutMap] = tKV
 	setCommon := []string{"len() -> Int", "is_empty() -> Bool", "contains(x: T) -> Bool",
 		"to_list() -> List<T>", "map<U>(f: fn(T) -> U) -> List<U>", "each(f: fn(T))",
@@ -404,8 +410,16 @@ func buildStd() *stdEnv {
 	e.methods[KMutSet] = merge(e.table(tT, "add(x: T) -> Bool", "remove(x: T) -> Bool", "clear()",
 		"freeze() -> Set<T>", "filter(f: fn(T) -> Bool) -> List<T>"), e.table(tT, setCommon...))
 	e.recvParams[KMutSet] = tT
-	e.methods[KRange] = e.table(nil, "to_list() -> List<Int>", "rev() -> Range", "step(n: Int) -> Range",
-		"contains(x: Int) -> Bool", "len() -> Int")
+	// Range: the List operations with T = Int, producing Lists directly.
+	var rangeSigs []string
+	tWord := regexp.MustCompile(`\bT\b`)
+	for _, sig := range listCommon {
+		if !strings.HasPrefix(sig, "join(") {
+			rangeSigs = append(rangeSigs, tWord.ReplaceAllString(sig, "Int"))
+		}
+	}
+	e.methods[KRange] = merge(e.table(nil, "to_list() -> List<Int>", "rev() -> Range", "step(n: Int) -> Range",
+		"contains(x: Int) -> Bool", "len() -> Int"), e.table(nil, rangeSigs...))
 	e.methods[KBytes] = e.table(nil, "len() -> Int", "slice(start: Int, end: Int) -> Bytes",
 		"to_str() -> Result<Str, Utf8Error>")
 	e.methods[KOption] = e.table(tT, "is_some() -> Bool", "is_none() -> Bool", "map<U>(f: fn(T) -> U) -> U?")
@@ -450,5 +464,41 @@ func buildStd() *stdEnv {
 	j := mod("json", "encode<T>(v: T) -> Str", "decode<T>(s: Str) -> Result<T, JsonError>")
 	j.fns["encode"].Special = "encode"
 	j.fns["decode"].Special = "decode"
+	e.buildHTTP(dataT, addFields)
 	return e
+}
+
+// buildHTTP adds std/http (DESIGN 3.21). Its types are visible only through
+// the module (http.Request), not in the prelude.
+func (e *stdEnv) buildHTTP(dataT func(string, ...string) *TypeInfo, addFields func(*TypeInfo, string)) {
+	req := dataT("Request")
+	resp := dataT("Response")
+	app := &TypeInfo{Name: "App", Kind: DClass, Pub: true, Methods: map[string]*FnInfo{}}
+	e.types["App"] = app
+	defer func() {
+		delete(e.types, "Request")
+		delete(e.types, "Response")
+		delete(e.types, "App")
+	}()
+	addFields(req, "method: Str, path: Str, params: Map<Str, Str>, query: Map<Str, Str>, headers: Map<Str, Str>, body: Str")
+	addFields(resp, "status: Int, body: Str, headers: Map<Str, Str>")
+	for _, ti := range []*TypeInfo{req, resp} {
+		f := e.parseSig("json<T>() -> Result<T, JsonError>", nil)
+		f.Special = "decode"
+		ti.Methods["json"] = f
+	}
+	for _, m := range []string{"get", "post", "put", "patch", "delete"} {
+		app.Methods[m] = e.parseSig(m+"(path: Str, h: fn(Request) -> Response)", nil)
+	}
+	app.Methods["handle"] = e.parseSig("handle(req: Request) -> Response", nil)
+	app.Methods["listen"] = e.parseSig("listen(port: Int) !net", nil)
+	m := &stdModule{name: "http", types: map[string]*TypeInfo{}, fns: e.table(nil, "App() -> App",
+		`request(method: Str, path: Str, body: Str = "", headers: Map<Str, Str> = {}) -> Request`,
+		"json<T>(v: T, status: Int = 200) -> Response", "text(s: Str, status: Int = 200) -> Response",
+		"empty(status: Int) -> Response", "error(status: Int, msg: Str) -> Response")}
+	for k, v := range e.types {
+		m.types[k] = v
+	}
+	m.fns["json"].Special = "encode"
+	e.modules["http"] = m
 }
