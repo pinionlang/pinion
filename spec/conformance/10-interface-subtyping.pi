@@ -1,0 +1,142 @@
+// 규칙: DESIGN.md 3.9, 3.15 — interface로의 값 변환과 변성 없음
+
+//# case: impl-value-as-interface-arg
+//# expect: run
+//# stdout: 100
+interface Discount {
+  fn amount(total: Int) -> Int
+}
+
+data Flat : Discount {
+  pub off: Int
+  fn amount(total: Int) -> Int { self.off }
+}
+
+fn apply(d: Discount, total: Int) -> Int {
+  total - d.amount(total)
+}
+
+fn main() !io {
+  print("{apply(Flat(off: 20), 120)}")   // Flat → Discount (값 하나 변환)
+}
+
+//# case: impl-values-in-list-literal
+//# expect: run
+//# stdout: 30
+interface Discount {
+  fn amount(total: Int) -> Int
+}
+
+data Flat : Discount {
+  pub off: Int
+  fn amount(total: Int) -> Int { self.off }
+}
+
+data Rate : Discount {
+  pub percent: Int
+  fn amount(total: Int) -> Int { total * self.percent / 100 }
+}
+
+fn main() !io {
+  let ds: List<Discount> = [Flat(off: 10), Rate(percent: 20)]   // 원소 하나하나가 변환된다
+  print("{ds.map(d => d.amount(100)).sum()}")
+}
+
+//# case: impl-to-optional-interface
+//# expect: ok
+interface Discount {
+  fn amount(total: Int) -> Int
+}
+
+data Flat : Discount {
+  pub off: Int
+  fn amount(total: Int) -> Int { self.off }
+}
+
+fn pick(vip: Bool) -> Discount? {
+  if vip { Flat(off: 10) } else { None }   // Flat → Discount → Discount?
+}
+
+//# case: no-structural-typing
+//# expect: error
+interface Discount {
+  fn amount(total: Int) -> Int
+}
+
+data Lookalike {                // 메서드는 같지만 : Discount 선언이 없다
+  pub off: Int
+  fn amount(total: Int) -> Int { self.off }
+}
+
+fn apply(d: Discount) -> Int { d.amount(0) }
+
+fn main() {
+  let _ = apply(Lookalike(off: 1))   //~ E1201
+}
+
+//# case: no-collection-variance
+//# expect: error
+interface Discount {
+  fn amount(total: Int) -> Int
+}
+
+data Flat : Discount {
+  pub off: Int
+  fn amount(total: Int) -> Int { self.off }
+}
+
+fn total_off(ds: List<Discount>) -> Int {
+  ds.map(d => d.amount(100)).sum()
+}
+
+fn run(flats: List<Flat>) -> Int {
+  total_off(flats)              //~ E1201
+}
+
+//# case: explicit-collection-conversion
+//# expect: ok
+interface Discount {
+  fn amount(total: Int) -> Int
+}
+
+data Flat : Discount {
+  pub off: Int
+  fn amount(total: Int) -> Int { self.off }
+}
+
+fn total_off(ds: List<Discount>) -> Int {
+  ds.map(d => d.amount(100)).sum()
+}
+
+fn run(flats: List<Flat>) -> Int {
+  let ds: List<Discount> = flats.map(f => f)   // 기대 타입이 정해져 있어 클로저 반환값이 변환된다
+  total_off(ds)
+}
+
+//# case: no-mutable-collection-variance
+//# expect: error
+interface Discount {
+  fn amount(total: Int) -> Int
+}
+
+data Flat : Discount {
+  pub off: Int
+  fn amount(total: Int) -> Int { self.off }
+}
+
+fn add_any(ds: MutList<Discount>) { }
+
+fn run(flats: MutList<Flat>) {
+  add_any(flats)                //~ E1201
+}
+
+//# case: impl-signature-must-match-exactly
+//# expect: error
+interface Discount {
+  fn amount(total: Int) -> Int
+}
+
+data Flat : Discount {
+  pub off: Int
+  fn amount(total: Int) -> Int? { self.off }   //~ E1205
+}

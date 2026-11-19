@@ -1,0 +1,276 @@
+// 규칙: DESIGN.md 3.12, 3.13 — 평가 순서와 효과
+
+//# case: args-left-to-right
+//# expect: run
+//# stdout: a
+//# stdout: b
+//# stdout: c
+fn say(s: Str) -> Int !io {
+  print(s)
+  0
+}
+
+fn three(x: Int, y: Int, z: Int) -> Int { x + y + z }
+
+fn main() !io {
+  let _ = three(say("a"), say("b"), say("c"))
+}
+
+//# case: named-args-in-written-order
+//# expect: run
+//# stdout: second
+//# stdout: first
+data Pair {
+  pub first: Int
+  pub second: Int
+}
+
+fn say(s: Str) -> Int !io {
+  print(s)
+  0
+}
+
+fn main() !io {
+  let _ = Pair(second: say("second"), first: say("first"))
+}
+
+//# case: map-runs-eagerly-once-in-order
+//# expect: run
+//# stdout: 1
+//# stdout: 2
+//# stdout: 3
+//# stdout: done
+fn main() !io {
+  let doubled = [1, 2, 3].map(x => {
+    print("{x}")
+    x * 2
+  })
+  print("done")
+}
+
+//# case: any-stops-at-first-match
+//# expect: run
+//# stdout: 1
+//# stdout: 2
+//# stdout: true
+fn main() !io {
+  let found = [1, 2, 3, 4].any(x => {
+    print("{x}")
+    x == 2
+  })
+  print("{found}")
+}
+
+//# case: sort-by-key-once-and-stable
+//# expect: run
+//# stdout: key bob
+//# stdout: key al
+//# stdout: key cy
+//# stdout: al,bob,cy
+data Person {
+  pub name: Str
+  pub age: Int
+}
+
+fn main() !io {
+  let people = [
+    Person(name: "bob", age: 30),
+    Person(name: "al", age: 20),
+    Person(name: "cy", age: 30),
+  ]
+  let sorted = people.sort_by(p => {
+    print("key {p.name}")
+    p.age
+  })
+  print(sorted.map(p => p.name).join(","))   // 키가 같은 bob과 cy는 원래 순서를 유지한다
+}
+
+//# case: missing-effect
+//# expect: error
+import std/fs
+
+fn load(path: Str) -> Result<Str, fs.FsError> {
+  fs.read(path)                 //~ E3001
+}
+
+//# case: unused-effect
+//# expect: warning
+fn add(a: Int, b: Int) -> Int !io {   //~ W3002
+  a + b
+}
+
+//# case: hof-propagates-callback-effect
+//# expect: error
+fn show_all(xs: List<Int>) {
+  xs.each(x => print("{x}"))    //~ E3001
+}
+
+//# case: pure-callback-to-io-param
+//# expect: ok
+fn apply(f: fn(Int) -> Int !io) -> Int !io {
+  f(1)
+}
+
+fn main() !io {
+  let n = apply(x => x + 1)     // 효과 없는 함수는 !io 자리에 넘길 수 있다
+  print("{n}")
+}
+
+//# case: io-callback-to-pure-param
+//# expect: error
+fn apply(f: fn(Int) -> Int) -> Int {
+  f(1)
+}
+
+fn main() {
+  let n = apply(x => {          //~ E3002
+    print("side effect")
+    x + 1
+  })
+}
+
+//# case: no-effect-polymorphism
+//# expect: error
+// apply는 !io를 선언했으므로, 순수한 콜백을 넘겨도 호출식은 정적으로 !io다.
+fn apply(f: fn(Int) -> Int !io) -> Int !io {
+  f(1)
+}
+
+fn pure_caller() -> Int {
+  apply(x => x + 1)             //~ E3001
+}
+
+//# case: interface-impl-effect-subset
+//# expect: error
+import std/fs
+
+interface Source {
+  fn get() -> Str
+}
+
+class FileSource : Source {
+  path: Str
+  fn get() -> Str !fs {         //~ E3003
+    fs.read(self.path).ok() ?? ""
+  }
+}
+
+//# case: interface-impl-cannot-add-mut
+//# expect: error
+interface Source {
+  fn get() -> Str
+}
+
+class CountingSource : Source {
+  mut calls: Int = 0
+  mut fn get() -> Str {         //~ E3004
+    self.calls += 1
+    "x"
+  }
+}
+
+//# case: coalesce-needs-parens
+//# expect: error
+fn next(x: Int?) -> Int {
+  x ?? 0 + 1                    //~ E0102
+}
+
+//# case: effect-replacement-only-in-tests
+//# expect: error
+import std/fs
+
+fn main() !fs {
+  with fs: fs.fake(files: {}) { //~ E3201
+    let _ = fs.read("a.txt")
+  }
+}
+
+//# case: effect-replacement-scope
+//# expect: tests
+//# test: indirect calls see the fake -> passed
+//# test: innermost fake wins -> passed
+//# test: restored after block -> passed
+import std/fs
+
+fn read_or_empty(path: Str) -> Str !fs {
+  fs.read(path).ok() ?? ""
+}
+
+test "indirect calls see the fake" {
+  with fs: fs.fake(files: {"a.txt": "hello"}) {
+    assert read_or_empty("a.txt") == "hello"
+  }
+}
+
+test "innermost fake wins" {
+  with fs: fs.fake(files: {"a.txt": "outer"}) {
+    with fs: fs.fake(files: {"a.txt": "inner"}) {
+      assert read_or_empty("a.txt") == "inner"
+    }
+    assert read_or_empty("a.txt") == "outer"
+  }
+}
+
+// 블록을 벗어나면 테스트 기본 가짜(빈 파일 시스템)로 돌아간다.
+// 실제 파일 시스템을 읽지 않으므로, 작업 디렉터리에 어떤 파일이 있든 결과가 같다.
+test "restored after block" {
+  with fs: fs.fake(files: {"only-in-fake.txt": "x"}) {
+    assert read_or_empty("only-in-fake.txt") == "x"
+  }
+  assert read_or_empty("only-in-fake.txt") == ""
+}
+
+//# case: tests-are-hermetic-by-default
+//# expect: tests
+//# test: fs starts empty -> passed
+//# test: time is fixed -> passed
+//# test: env is empty -> passed
+import std/fs
+import std/time
+import std/env
+
+test "fs starts empty" {
+  assert fs.read("/etc/hosts").ok() == None
+}
+
+test "time is fixed" {
+  assert time.now_unix() == 946684800
+}
+
+test "env is empty" {
+  assert env.args().len() == 0
+}
+
+//# case: test-declares-real-effect
+//# expect: warning
+test "declares fs but never uses it" !fs {   //~ W3002
+  assert 1 == 1
+}
+
+//# case: real-fs-nested-fake-and-restore
+//# expect: tests
+//# test: real fs then fake then real again -> passed
+//# test: without declaration the real file is hidden -> passed
+//# file: data.txt
+real
+//# file: src/app.pi
+// data.txt는 하네스가 임시 작업 디렉터리에 만든 실제 파일이다.
+import std/fs
+
+fn read_trim(path: Str) -> Str !fs {
+  (fs.read(path).ok() ?? "").trim()
+}
+
+// 테스트의 !fs는 "이 테스트에서는 fs에 실제 구현을 쓴다"는 선택이다.
+test "real fs then fake then real again" !fs {
+  assert read_trim("data.txt") == "real"            // 실제 파일
+  with fs: fs.fake(files: {"data.txt": "fake"}) {
+    assert read_trim("data.txt") == "fake"          // 안쪽에서 가짜로 다시 대체
+  }
+  assert read_trim("data.txt") == "real"            // 블록을 벗어나면 실제 구현으로 복구
+}
+
+// 같은 파일이 실제로 있어도, 효과를 선언하지 않은 테스트는 빈 가짜 fs를 본다.
+test "without declaration the real file is hidden" {
+  assert read_trim("data.txt") == ""
+}

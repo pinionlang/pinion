@@ -1,0 +1,251 @@
+// 규칙: DESIGN.md 3.6 — 모든 생성 경로가 init을 거친다
+
+//# case: fallible-init-makes-ctor-return-result
+//# expect: run
+//# stdout: negative -1
+enum AccountError {
+  Negative(Int)
+}
+
+data Account {
+  pub id: Int
+  pub balance: Int
+
+  init(id: Int, balance: Int) -> Result<Self, AccountError> {
+    if balance < 0 { return Err(AccountError.Negative(balance)) }
+    Ok(Self { id: id, balance: balance })
+  }
+}
+
+fn main() !io {
+  match Account(id: 1, balance: -1) {
+    Ok(_) => print("ok")
+    Err(Negative(n)) => print("negative {n}")
+  }
+}
+
+//# case: with-runs-init
+//# expect: run
+//# stdout: rejected
+enum AccountError {
+  Negative(Int)
+}
+
+data Account {
+  pub id: Int
+  pub balance: Int
+
+  init(id: Int, balance: Int) -> Result<Self, AccountError> {
+    if balance < 0 { return Err(AccountError.Negative(balance)) }
+    Ok(Self { id: id, balance: balance })
+  }
+}
+
+fn main() -> Result<(), AccountError> !io {
+  let a = Account(id: 1, balance: 10)?
+  match a.with(balance: -100) {   // with도 init을 거치므로 Result를 돌려준다
+    Ok(_) => print("bypassed")
+    Err(_) => print("rejected")
+  }
+  Ok(())
+}
+
+//# case: infallible-init-normalizes
+//# expect: run
+//# stdout: alice
+data Name {
+  pub value: Str
+
+  init(value: Str) -> Self {
+    Self { value: value.trim().lower() }
+  }
+}
+
+fn main() !io {
+  print(Name(value: "  Alice ").value)
+}
+
+//# case: init-params-must-match-fields
+//# expect: error
+data User {
+  pub name: Str
+  pub domain: Str
+
+  init(email: Str) -> Self {    //~ E1503
+    Self { name: email.before("@"), domain: email.after("@") }
+  }
+}
+
+//# case: use-factory-for-other-inputs
+//# expect: ok
+data User {
+  pub name: Str
+  pub domain: Str
+}
+
+pub fn user_from_email(email: Str) -> User? {
+  let at = email.index_of("@") else return None
+  User(name: email.slice(0, at), domain: email.slice(at + 1, email.len()))
+}
+
+//# case: self-literal-outside-init
+//# expect: error
+data Point {
+  pub x: Int
+  pub y: Int
+
+  pub fn origin() -> Point {
+    Self { x: 0, y: 0 }         //~ E1504
+  }
+}
+
+//# case: self-literal-must-fill-all-fields
+//# expect: error
+data Point {
+  pub x: Int
+  pub y: Int
+
+  init(x: Int, y: Int) -> Self {
+    Self { x: x }               //~ E1505
+  }
+}
+
+//# case: class-init-free-params
+//# expect: ok
+class Store {
+  path: Str
+  cache: MutMap<Str, Str>
+
+  init(dir: Str) -> Self {
+    Self { path: "{dir}/store.json", cache: MutMap<Str, Str>() }
+  }
+}
+
+//# case: field-default-has-no-effects
+//# expect: error
+import std/time
+
+class Session {
+  started: Int = time.now_unix()   //~ E3005
+}
+
+//# case: data-init-has-no-effects
+//# expect: error
+data Stamp {
+  pub label: Str
+
+  init(label: Str) -> Self !io {   //~ E3006
+    print("creating")
+    Self { label: label }
+  }
+}
+
+//# case: class-init-effect-propagates-to-ctor
+//# expect: error
+import std/fs
+
+class Config {
+  text: Str
+
+  init(path: Str) -> Self !fs {
+    Self { text: fs.read(path).ok() ?? "" }
+  }
+}
+
+fn load() -> Config {
+  Config(path: "app.conf")         //~ E3001
+}
+
+//# case: ctor-evaluation-order
+//# expect: run
+//# stdout: b
+//# stdout: a
+//# stdout: init
+class Probe {
+  first: Int
+  second: Int
+
+  init(first: Int, second: Int) -> Self !io {
+    print("init")
+    Self { first: first, second: second }
+  }
+}
+
+fn say(s: Str) -> Int !io {
+  print(s)
+  0
+}
+
+fn main() !io {
+  let _ = Probe(second: say("b"), first: say("a"))   // 인자는 작성 순서대로, 그다음 init
+}
+
+//# case: decode-type-with-init-rejected
+//# expect: error
+import std/json
+
+data Account {
+  pub id: Int
+  pub balance: Int
+
+  init(id: Int, balance: Int) -> Self {
+    Self { id: id, balance: balance }
+  }
+}
+
+fn load(text: Str) -> Result<Account, json.JsonError> {
+  json.decode<Account>(text)    //~ E1501
+}
+
+//# case: decode-dto-then-construct
+//# expect: ok
+import std/json
+
+enum LoadError {
+  Json(json.JsonError)
+  Invalid(AccountError)
+}
+
+enum AccountError {
+  Negative(Int)
+}
+
+data AccountDto {
+  pub id: Int
+  pub balance: Int
+}
+
+data Account {
+  pub id: Int
+  pub balance: Int
+
+  init(id: Int, balance: Int) -> Result<Self, AccountError> {
+    if balance < 0 { return Err(AccountError.Negative(balance)) }
+    Ok(Self { id: id, balance: balance })
+  }
+}
+
+fn load(text: Str) -> Result<Account, LoadError> {
+  let dto = json.decode<AccountDto>(text).map_err(LoadError.Json)?
+  Account(id: dto.id, balance: dto.balance).map_err(LoadError.Invalid)
+}
+
+//# case: private-field-outside-module
+//# expect: error
+//# file: src/bank/account.pi
+pub data Account {
+  pub id: Int
+  balance: Int
+}
+
+pub fn open(id: Int) -> Account {
+  Account(id: id, balance: 0)   // 같은 모듈 안이므로 허용
+}
+//# file: src/main.pi
+import bank/account
+
+fn main() {
+  let a = account.open(1)
+  let b = account.Account(id: 2, balance: 100)   //~ E1506
+  let c = a.with(id: 3)                          //~ E1506
+}

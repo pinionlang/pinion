@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <title>Pinion (.pi)</title>
+  <!-- British Racing Green 바탕, 투명 캔버스 위 둥근 사각형 (캔버스의 약 85%) -->
+  <rect x="77" y="77" width="870" height="870" rx="196" fill="#004225"/>
+  <!-- ".pi" 모노그램: 굵기를 맞춘 선, 둥근 끝, 넉넉한 p의 속공간 -->
+  <g transform="translate(-27 -42)" fill="none" stroke="#F5F2E8" stroke-width="92" stroke-linecap="round">
+    <!-- p: 세로획 + 둥근 고리 -->
+    <line x1="420" y1="420" x2="420" y2="820"/>
+    <circle cx="540" cy="540" r="120"/>
+    <!-- i: 세로획 -->
+    <line x1="800" y1="430" x2="800" y2="660"/>
+  </g>
+  <g transform="translate(-27 -42)" fill="#F5F2E8">
+    <!-- 기준선 위의 마침표 -->
+    <circle cx="290" cy="614" r="58"/>
+    <!-- i의 점 -->
+    <circle cx="800" cy="300" r="58"/>
+  </g>
+</svg>

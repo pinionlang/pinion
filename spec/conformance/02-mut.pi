@@ -1,0 +1,221 @@
+// 규칙: DESIGN.md 3.2, 3.5 — class 참조 의미와 mut의 정확한 범위
+
+//# case: class-is-reference
+//# expect: run
+//# stdout: 1
+class Counter {
+  mut count: Int = 0
+  pub mut fn hit() { self.count += 1 }
+  pub fn value() -> Int { self.count }
+}
+
+fn main() !io {
+  let c1 = Counter()
+  let c2 = c1
+  c2.hit()
+  print("{c1.value()}")
+}
+
+//# case: data-is-value
+//# expect: run
+//# stdout: a
+//# stdout: b
+data User {
+  pub name: Str
+}
+
+fn main() !io {
+  let a = User(name: "a")
+  let b = a.with(name: "b")
+  print(a.name)
+  print(b.name)
+}
+
+//# case: assign-in-non-mut-fn
+//# expect: error
+class Counter {
+  mut count: Int = 0
+  pub fn reset() {
+    self.count = 0              //~ E3101
+  }
+}
+
+//# case: call-self-mut-from-non-mut
+//# expect: error
+class Counter {
+  mut count: Int = 0
+  pub mut fn hit() { self.count += 1 }
+  pub fn twice() {
+    self.hit()                  //~ E3103
+    self.hit()                  //~ E3103
+  }
+}
+
+//# case: call-self-mut-from-mut
+//# expect: ok
+class Counter {
+  mut count: Int = 0
+  pub mut fn hit() { self.count += 1 }
+  pub mut fn twice() {
+    self.hit()
+    self.hit()
+  }
+}
+
+//# case: closure-in-non-mut-calls-self-mut
+//# expect: error
+class Counter {
+  mut count: Int = 0
+  pub mut fn hit() { self.count += 1 }
+  pub fn hit_each(xs: List<Int>) {
+    xs.each(x => self.hit())    //~ E3103
+  }
+}
+
+//# case: field-object-mut-allowed
+//# expect: run
+//# stdout: 1
+class Counter {
+  mut count: Int = 0
+  pub mut fn hit() { self.count += 1 }
+  pub fn value() -> Int { self.count }
+}
+
+class Service {
+  counter: Counter
+  pub fn run() {
+    self.counter.hit()          // 허용: 변경은 Counter.hit 시그니처에 드러난다
+  }
+}
+
+fn main() !io {
+  let c = Counter()
+  let s = Service(counter: c)
+  s.run()
+  print("{c.value()}")
+}
+
+//# case: passing-self-is-shallow-limit
+//# expect: run
+//# stdout: 1
+// 경계 사례: mut가 없는 메서드가 self를 넘기면, 받은 쪽이 self를 바꿀 수 있다.
+// 얕은 mut 규칙의 알려진 한계이며 레퍼런스에 명시한다.
+class Counter {
+  mut count: Int = 0
+  pub mut fn hit() { self.count += 1 }
+  pub fn value() -> Int { self.count }
+  pub fn sneaky() {
+    bump(self)
+  }
+}
+
+fn bump(c: Counter) {
+  c.hit()
+}
+
+fn main() !io {
+  let c = Counter()
+  c.sneaky()
+  print("{c.value()}")
+}
+
+//# case: non-mut-field-assign-in-mut-fn
+//# expect: error
+class Counter {
+  name: Str
+  mut count: Int = 0
+  pub mut fn rename(n: Str) {
+    self.name = n               //~ E3104
+  }
+}
+
+//# case: no-field-assign-from-outside
+//# expect: error
+class Counter {
+  pub mut count: Int = 0
+}
+
+fn reset(c: Counter) {
+  c.count = 0                   //~ E3105
+}
+
+//# case: pub-mut-field-is-readable
+//# expect: run
+//# stdout: 0
+class Counter {
+  pub mut count: Int = 0
+}
+
+fn main() !io {
+  let c = Counter()
+  print("{c.count}")
+}
+
+//# case: let-blocks-rebinding-only
+//# expect: error
+fn main() {
+  let x = 1
+  x = 2                         //~ E1202
+}
+
+//# case: captured-var-assign
+//# expect: error
+fn total(xs: List<Int>) -> Int {
+  var sum = 0
+  xs.each(x => sum = sum + x)   //~ E3102
+  sum
+}
+
+//# case: accumulate-with-mut-collection
+//# expect: run
+//# stdout: 6
+fn main() !io {
+  let acc = MutList<Int>()
+  [1, 2, 3].each(x => acc.push(x))
+  print("{acc.freeze().sum()}")
+}
+
+//# case: alias-of-self-cannot-assign
+//# expect: error
+// 대입은 자기 mut fn 안의 self.필드 형태만 허용한다
+class Counter {
+  mut count: Int = 0
+  pub mut fn reset() {
+    let alias = self
+    alias.count = 0             //~ E3105
+  }
+}
+
+//# case: cannot-assign-field-of-field-object
+//# expect: error
+class Counter {
+  mut count: Int = 0
+  pub mut fn reset() { self.count = 0 }
+}
+
+class Panel {
+  child: Counter
+  pub mut fn clear() {
+    self.child.count = 0        //~ E3105
+  }
+}
+
+//# case: read-only-means-no-direct-assignment-only
+//# expect: run
+//# stdout: 1
+// pub 필드가 참조 객체이면 그 객체의 mut fn을 불러 내부 상태를 바꿀 수 있다 (얕은 규칙)
+class Counter {
+  mut count: Int = 0
+  pub mut fn hit() { self.count += 1 }
+  pub fn value() -> Int { self.count }
+}
+
+class Panel {
+  pub child: Counter
+}
+
+fn main() !io {
+  let p = Panel(child: Counter())
+  p.child.hit()                 // 허용: 직접 대입이 아니라 Counter.hit 호출
+  print("{p.child.value()}")
+}

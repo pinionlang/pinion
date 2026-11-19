@@ -1,0 +1,81 @@
+// 규칙: DESIGN.md 3.17 — 모듈, import, 가시성
+
+//# case: qualified-access
+//# expect: run
+//# stdout: 2
+//# file: src/todo/store.pi
+pub data Todo {
+  pub title: Str
+}
+
+pub fn sample() -> List<Todo> {
+  [Todo(title: "a"), Todo(title: "b")]
+}
+//# file: src/main.pi
+import todo/store
+
+fn main() !io {
+  let xs: List<store.Todo> = store.sample()
+  print("{xs.len()}")
+}
+
+//# case: import-alias
+//# expect: ok
+//# file: src/todo/store.pi
+pub fn count() -> Int { 0 }
+//# file: src/cache/store.pi
+pub fn count() -> Int { 1 }
+//# file: src/main.pi
+import todo/store
+import cache/store as cs
+
+fn total() -> Int {
+  store.count() + cs.count()
+}
+
+//# case: no-selective-import
+//# expect: error
+//# file: src/todo/store.pi
+pub fn load() -> Int { 0 }
+//# file: src/main.pi
+import todo/store { load }      //~ E0104
+
+//# case: private-item-not-visible
+//# expect: error
+//# file: src/todo/store.pi
+fn secret() -> Int { 42 }
+//# file: src/main.pi
+import todo/store
+
+fn peek() -> Int {
+  store.secret()                //~ E1602
+}
+
+//# case: private-field-not-readable
+//# expect: error
+//# file: src/bank/account.pi
+pub data Account {
+  pub id: Int
+  balance: Int
+}
+//# file: src/main.pi
+import bank/account
+
+fn peek(a: account.Account) -> Int {
+  a.balance                     //~ E1602
+}
+
+//# case: cyclic-import
+//# expect: error
+//# file: src/a.pi
+import b                        //~ E1601
+pub fn fa() -> Int { 1 }
+//# file: src/b.pi
+import a                        //~ E1601
+pub fn fb() -> Int { 2 }
+
+//# case: std-needs-import
+//# expect: error
+fn load(path: Str) -> Str !fs {
+  fs.read(path).ok() ?? ""      //~ E1101
+}

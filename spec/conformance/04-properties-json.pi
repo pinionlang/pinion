@@ -1,0 +1,219 @@
+// 규칙: DESIGN.md 3.3, 3.4, 3.7, 3.15 — 타입 속성, Map, JSON 매핑, 숫자
+
+//# case: class-has-no-eq
+//# expect: error
+class Conn { mut open: Bool = true }
+
+fn same(a: Conn, b: Conn) -> Bool {
+  a == b                        //~ E1301
+}
+
+//# case: enum-with-class-payload-has-no-eq
+//# expect: error
+class Conn { mut open: Bool = true }
+
+enum Payload {
+  Value(Int)
+  Live(Conn)
+}
+
+fn same(a: Payload, b: Payload) -> Bool {
+  a == b                        //~ E1301
+}
+
+//# case: map-eq-ignores-order
+//# expect: run
+//# stdout: true
+fn main() !io {
+  let a = {"x": 1, "y": 2}
+  let b = {"y": 2, "x": 1}
+  print("{a == b}")
+}
+
+//# case: map-iterates-in-insertion-order
+//# expect: run
+//# stdout: c
+//# stdout: a
+//# stdout: b
+fn main() !io {
+  let m = MutMap<Str, Int>()
+  m.set("c", 1)
+  m.set("a", 2)
+  m.set("b", 3)
+  for (k, _) in m.freeze() {
+    print(k)
+  }
+}
+
+//# case: int-overflow-aborts
+//# expect: abort R0101
+fn inc(x: Int) -> Int { x + 1 }
+
+fn main() {
+  let x = inc(9223372036854775807)
+}
+
+//# case: int-division-by-zero-aborts
+//# expect: abort R0103
+fn div(a: Int, b: Int) -> Int { a / b }
+
+fn main() {
+  let x = div(1, 0)
+}
+
+//# case: float-is-always-finite
+//# expect: abort R0104
+fn main() {
+  let zero = 0.0
+  let x = zero / zero
+}
+
+//# case: no-mixed-numeric-ops
+//# expect: error
+fn avg(sum: Int, n: Float) -> Float {
+  sum / n                       //~ E1201
+}
+
+//# case: optional-field-omitted-in-json
+//# expect: run
+//# stdout: {"name":"a"}
+import std/json
+
+data User {
+  pub name: Str
+  pub email: Str?
+}
+
+fn main() !io {
+  print(json.encode(User(name: "a", email: None)))
+}
+
+//# case: private-field-is-still-encoded
+//# expect: run
+//# stdout: {"id":1,"balance":10}
+import std/json
+
+data Account {
+  pub id: Int
+  balance: Int
+}
+
+fn main() !io {
+  print(json.encode(Account(id: 1, balance: 10)))
+}
+
+//# case: enum-tag-format
+//# expect: run
+//# stdout: {"tag":"Member","value":{"team":"core"}}
+//# stdout: {"tag":"Code","value":[42]}
+//# stdout: {"tag":"Admin"}
+import std/json
+
+enum Role {
+  Admin
+  Member(team: Str)
+  Code(Int)
+}
+
+fn main() !io {
+  print(json.encode(Role.Member(team: "core")))
+  print(json.encode(Role.Code(42)))
+  print(json.encode(Role.Admin))
+}
+
+//# case: enum-payload-field-named-tag-is-fine
+//# expect: run
+//# stdout: {"tag":"Label","value":{"tag":"urgent"}}
+// 인접 태그 형식이라 payload 필드 이름이 tag여도 판별자와 충돌하지 않는다
+import std/json
+
+enum Mark {
+  Label(tag: Str)
+}
+
+fn main() !io {
+  print(json.encode(Mark.Label(tag: "urgent")))
+}
+
+//# case: none-in-list-is-null
+//# expect: run
+//# stdout: [1,null,3]
+import std/json
+
+fn main() !io {
+  let xs: List<Int?> = [1, None, 3]
+  print(json.encode(xs))
+}
+
+//# case: none-in-map-keeps-key
+//# expect: run
+//# stdout: {"a":1,"b":null}
+//# stdout: 2
+import std/json
+
+fn main() !io {
+  let m: Map<Str, Int?> = {"a": 1, "b": None}
+  let text = json.encode(m)
+  print(text)
+  let back = json.decode<Map<Str, Int?>>(text).ok() else return
+  print("{back.len()}")         // 왕복 후에도 키 b가 남는다
+}
+
+//# case: top-level-none-is-null
+//# expect: run
+//# stdout: null
+import std/json
+
+fn main() !io {
+  let x: Int? = None
+  print(json.encode(x))
+}
+
+//# case: nested-optional-banned
+//# expect: error
+fn f(x: Int??) -> Int {         //~ E1204
+  0
+}
+
+//# case: decode-rejects-unknown-field
+//# expect: run
+//# stdout: unknown_field $.age
+import std/json
+
+data User {
+  pub name: Str
+}
+
+fn main() !io {
+  match json.decode<User>("{\"name\":\"a\",\"age\":3}") {
+    Ok(_) => print("ok")
+    Err(e) => print("{e.code()} {e.path}")
+  }
+}
+
+//# case: decode-missing-optional-is-none
+//# expect: run
+//# stdout: none
+import std/json
+
+data User {
+  pub name: Str
+  pub email: Str?
+}
+
+fn main() !io {
+  let u = json.decode<User>("{\"name\":\"a\"}").ok() else return
+  print(u.email ?? "none")
+}
+
+//# case: map-with-non-str-key-not-encodable
+//# expect: error
+import std/json
+
+data Stats {
+  pub by_id: Map<Int, Int>
+}
+
+fn dump(s: Stats) -> Str {
+  json.encode(s)                //~ E1502
+}

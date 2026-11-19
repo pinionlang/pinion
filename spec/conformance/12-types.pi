@@ -1,0 +1,242 @@
+// 규칙: DESIGN.md 3.15.2 — Never, Range, Set, Dec, Bytes, Instant·Duration, 보간, 표준 오류
+
+//# case: never-in-let-else-and-match
+//# expect: ok
+enum Job {
+  Refund
+  Ship
+}
+
+fn handle(j: Job) -> Int {
+  match j {
+    Ship => 1
+    Refund => todo("환불 처리")   // Never는 Int 자리에 쓸 수 있다
+  }
+}
+
+fn first(xs: List<Int>) -> Int {
+  let x = xs.get(0) else return 0
+  x
+}
+
+//# case: todo-aborts
+//# expect: abort R0105
+fn main() {
+  let _: Int = todo()
+}
+
+//# case: range-half-open-and-inclusive
+//# expect: run
+//# stdout: 0,1,2
+//# stdout: 1,2,3
+//# stdout: 0
+//# stdout: 3,2,1
+//# stdout: 0,2,4
+fn main() !io {
+  print((0..3).to_list().map(i => "{i}").join(","))
+  print((1..=3).to_list().map(i => "{i}").join(","))
+  print("{(5..2).to_list().len()}")              // 빈 범위는 에러가 아니다
+  print((1..=3).rev().to_list().map(i => "{i}").join(","))
+  print((0..6).step(2).to_list().map(i => "{i}").join(","))
+}
+
+//# case: mutate-while-iterating-aborts
+//# expect: abort R0107
+fn main() {
+  let xs = MutList<Int>()
+  xs.push(1)
+  for x in xs {
+    xs.push(x)
+  }
+}
+
+//# case: set-dedup-and-insertion-order
+//# expect: run
+//# stdout: 3,1,2
+//# stdout: 3
+//# stdout: false
+fn main() !io {
+  let s = Set([3, 1, 3, 2, 1])                   // 중복은 버리고 첫 등장 순서를 유지한다
+  print(s.to_list().map(i => "{i}").join(","))
+  print("{s.len()}")
+  let m = MutSet<Int>()
+  let _ = m.add(1)
+  print("{m.add(1)}")                             // 이미 있으면 false
+}
+
+//# case: set-eq-ignores-order
+//# expect: run
+//# stdout: true
+fn main() !io {
+  print("{Set([1, 2]) == Set([2, 1])}")
+}
+
+//# case: set-operations-order
+//# expect: run
+//# stdout: 1,2,3,4
+//# stdout: 2,3
+//# stdout: 1
+//# stdout: 1,4
+fn show(s: Set<Int>) -> Str {
+  s.to_list().map(i => "{i}").join(",")
+}
+
+fn main() !io {
+  let a = Set([1, 2, 3])
+  let b = Set([3, 4, 2])
+  print(show(a.union(b)))       // a 순서, 그다음 a에 없는 b 원소를 b 순서로
+  print(show(a.intersect(b)))   // a 순서
+  print(show(a.diff(b)))
+  print(show(a.sym_diff(b)))    // a.diff(b) 다음 b.diff(a)
+}
+
+//# case: set-map-returns-list
+//# expect: run
+//# stdout: 3
+//# stdout: 1
+fn main() !io {
+  let s = Set([1, 2, 3])
+  let ones = s.map(x => 1)       // map은 List를 돌려준다
+  print("{ones.len()}")
+  print("{ones.to_set().len()}")
+}
+
+//# case: set-element-needs-eq-hash
+//# expect: error
+class Conn { mut open: Bool = true }
+
+fn conns(c: Conn) -> Set<Conn> {   //~ E1207
+  Set([c])
+}
+
+//# case: set-json-array-and-duplicate-error
+//# expect: run
+//# stdout: ["b","a"]
+//# stdout: duplicate_element $[1]
+import std/json
+
+fn main() !io {
+  print(json.encode(Set(["b", "a"])))
+  match json.decode<Set<Str>>("[\"x\",\"x\"]") {
+    Ok(_) => print("ok")
+    Err(e) => print("{e.code()} {e.path}")
+  }
+}
+
+//# case: dec-exact-arithmetic
+//# expect: run
+//# stdout: 0.30
+//# stdout: true
+//# stdout: 3.33
+fn main() !io {
+  print("{0.10d + 0.20d}")
+  print("{1.0d == 1.00d}")                        // 수치로 비교한다
+  print("{10.00d.div(3.00d, scale: 2, round: Round.HalfEven)}")
+}
+
+//# case: dec-no-slash
+//# expect: error
+fn half(x: Dec) -> Dec {
+  x / 2.0d                      //~ E1206
+}
+
+//# case: dec-no-mixing
+//# expect: error
+fn add(a: Dec, b: Int) -> Dec {
+  a + b                         //~ E1201
+}
+
+//# case: dec-json-is-string
+//# expect: run
+//# stdout: {"price":"12.30"}
+import std/json
+
+data Item {
+  pub price: Dec
+}
+
+fn main() !io {
+  print(json.encode(Item(price: 12.30d)))        // 자릿수를 보존한다
+}
+
+//# case: bytes-basics
+//# expect: run
+//# stdout: 6
+//# stdout: 237
+//# stdout: invalid
+fn main() !io {
+  let b = "한글".to_bytes()
+  print("{b.len()}")
+  print("{b[0]}")
+  match Bytes.from_list([255]).to_str() {
+    Ok(_) => print("valid")
+    Err(_) => print("invalid")
+  }
+}
+
+//# case: bytes-json-base64
+//# expect: run
+//# stdout: "AP8="
+import std/json
+
+fn main() !io {
+  print(json.encode(Bytes.from_list([0, 255])))
+}
+
+//# case: time-is-fixed-in-tests
+//# expect: tests
+//# test: duration math -> passed
+import std/time
+
+test "duration math" {
+  let start = time.now()
+  let later = start.add(Duration(ms: 1500))
+  assert later.since(start) == Duration(ms: 1500)
+  assert "{start}" == "2000-01-01T00:00:00Z"
+}
+
+//# case: interpolation-needs-display-type
+//# expect: error
+fn show(xs: List<Int>, name: Str?) -> Str {
+  "{xs} {name}"                 //~ E1208 E1208
+}
+
+//# case: interpolation-with-explicit-conversion
+//# expect: run
+//# stdout: 3 -
+fn main() !io {
+  let xs = [1, 2, 3]
+  let name: Str? = None
+  print("{xs.len()} {name ?? "-"}")
+}
+
+//# case: std-error-match
+//# expect: run
+//# stdout: missing nope.txt
+import std/fs
+
+fn main() !fs !io {
+  match fs.read("nope.txt") {
+    Ok(_) => print("found")
+    Err(NotFound(p)) => print("missing {p}")
+    Err(PermissionDenied(_) | IsDirectory(_) | InvalidUtf8(_) | Other(_, _)) => print("other")
+  }
+}
+
+//# case: parse-returns-result
+//# expect: run
+//# stdout: 42
+//# stdout: bad
+fn main() !io {
+  print("{Int.parse("42").ok() ?? 0}")
+  match Int.parse("4x2") {
+    Ok(_) => print("ok")
+    Err(_) => print("bad")
+  }
+}
+
+//# case: unreachable-aborts
+//# expect: abort R0106
+fn main() {
+  unreachable("never here")
+}

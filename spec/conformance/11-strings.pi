@@ -1,0 +1,62 @@
+// 규칙: DESIGN.md 3.15.1 — 문자열 길이와 인덱스는 코드 포인트 단위
+
+//# case: len-is-code-points
+//# expect: run
+//# stdout: 2
+//# stdout: 6
+fn main() !io {
+  let s = "한글"
+  print("{s.len()}")
+  print("{s.byte_len()}")
+}
+
+//# case: slice-is-code-points
+//# expect: run
+//# stdout: 글
+fn main() !io {
+  print("한글".slice(1, 2))
+}
+
+//# case: slice-out-of-range-aborts
+//# expect: abort R0102
+fn main() {
+  let _ = "ab".slice(0, 3)
+}
+
+//# case: no-string-indexing
+//# expect: error
+fn first(s: Str) -> Str {
+  s[0]                          //~ E1201
+}
+
+//# case: lines-rules
+//# expect: run
+//# stdout: 3
+//# stdout: b
+// "\r\n"의 "\r"은 지운다. 끝의 "\n" 뒤에는 빈 줄을 만들지 않는다.
+fn main() !io {
+  let ls = "a\r\nb\nc\n".lines()
+  print("{ls.len()}")
+  print(ls[1])
+}
+
+//# case: words-rules
+//# expect: run
+//# stdout: 3
+// 유니코드 공백으로 나누고 빈 조각은 버린다
+fn main() !io {
+  let s = "  hello\t세계 \n  pinion "
+  print("{s.words().len()}")
+}
+
+//# case: wc-counting-units
+//# expect: run
+//# stdout: 2 3 8
+// 인수 프로그램 A1(wc)의 기준: 줄 = "\n" 개수, 단어 = words(), 글자 = 코드 포인트
+fn main() !io {
+  let text = "가나 다\n라마\n"
+  let lines = text.count("\n")
+  let words = text.words().len()
+  let chars = text.len()
+  print("{lines} {words} {chars}")
+}

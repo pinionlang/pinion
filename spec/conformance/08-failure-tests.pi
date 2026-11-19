@@ -1,0 +1,120 @@
+// 규칙: DESIGN.md 3.11, 5.3 — 업무 실패, 결함, 테스트 실행 정책
+
+//# case: unused-result
+//# expect: error
+import std/fs
+
+fn save(text: Str) !fs {
+  fs.write("out.txt", text)     //~ E2101
+}
+
+//# case: explicit-discard
+//# expect: ok
+import std/fs
+
+fn save(text: Str) !fs {
+  let _ = fs.write("out.txt", text)
+}
+
+//# case: question-only-on-result
+//# expect: error
+fn first_char(s: Str?) -> Result<Str, Str> {
+  let v = s?                    //~ E2102
+  Ok(v.slice(0, 1))
+}
+
+//# case: no-auto-ok
+//# expect: error
+fn parse(s: Str) -> Result<Int, Str> {
+  42                            //~ E1201
+}
+
+//# case: no-auto-error-conversion
+//# expect: error
+enum DbError { Timeout }
+enum AppError { Db(DbError) }
+
+fn query() -> Result<Int, DbError> { Err(DbError.Timeout) }
+
+fn run() -> Result<Int, AppError> {
+  let n = query()?              //~ E2103
+  Ok(n)
+}
+
+//# case: explicit-error-conversion
+//# expect: ok
+enum DbError { Timeout }
+enum AppError { Db(DbError) }
+
+fn query() -> Result<Int, DbError> { Err(DbError.Timeout) }
+
+fn run() -> Result<Int, AppError> {
+  let n = query().map_err(AppError.Db)?
+  Ok(n)
+}
+
+//# case: index-out-of-range-aborts
+//# expect: abort R0102
+fn main() {
+  let xs = [1, 2, 3]
+  let x = xs[3]
+}
+
+//# case: safe-get-returns-option
+//# expect: run
+//# stdout: none
+fn main() !io {
+  let xs = [1, 2, 3]
+  let x = xs.get(3) else {
+    print("none")
+    return
+  }
+  print("{x}")
+}
+
+//# case: main-err-exits-1
+//# expect: run
+//# exit: 1
+enum AppError { Missing }
+
+fn main() -> Result<(), AppError> {
+  Err(AppError.Missing)
+}
+
+//# case: tests-are-isolated
+//# expect: tests
+//# exit: 1
+//# test: passes -> passed
+//# test: assert fails -> failed T0001
+//# test: defect aborts -> aborted R0102
+//# test: runs after failures -> passed
+test "passes" {
+  assert 1 + 1 == 2
+}
+
+test "assert fails" {
+  assert 1 + 1 == 3
+  assert false                  // 첫 실패에서 멈추므로 여기는 실행되지 않는다
+}
+
+test "defect aborts" {
+  let xs = [1]
+  let _ = xs[5]
+}
+
+test "runs after failures" {
+  assert [1, 2].len() == 2
+}
+
+//# case: test-timeout
+//# expect: tests
+//# exit: 1
+//# test: hangs -> timeout T0003
+//# test: still runs -> passed
+test "hangs" {
+  while true { }
+}
+
+test "still runs" {
+  assert true
+}

@@ -1,0 +1,54 @@
+// 규칙: DESIGN.md 3.19 — 주석과 문서 주석
+
+//# case: doc-comment-on-declarations
+//# expect: ok
+/// 주문 한 건. 금액은 모두 원 단위다.
+data Order {
+  /// 할인 전 금액
+  pub subtotal: Int
+  /// 할인 금액. subtotal보다 클 수 있다.
+  pub discount: Int
+}
+
+/// 결제 상태
+enum PayState {
+  /// 아직 결제하지 않음
+  Pending
+  /// 결제 완료. 승인 번호를 담는다.
+  Paid(approval: Str)
+}
+
+/// 주문 총액을 원 단위로 반환한다.
+/// 할인액이 주문액보다 크면 0을 반환한다.
+pub fn total(o: Order) -> Int {
+  (o.subtotal - o.discount).max(0)   // 일반 주석은 줄 끝까지
+}
+
+//# case: dangling-doc-comment
+//# expect: warning
+fn f() -> Int { 1 }
+
+/// 붙을 선언이 없다          //~ W0201
+
+//# case: doc-comment-is-not-a-contract
+//# expect: run
+//# stdout: -5
+// 경계 사례: 문서 주석은 설명일 뿐이다. 컴파일러는 내용을 검증하지 않는다.
+/// 항상 0 이상을 반환한다.
+fn wrong(x: Int) -> Int { x }
+
+fn main() !io {
+  print("{wrong(-5)}")
+}
+
+//# case: slashes-in-string-are-not-comments
+//# expect: run
+//# stdout: https://pinionlang.dev // not a comment
+fn main() !io {
+  print("https://pinionlang.dev // not a comment")
+}
+
+//# case: no-block-comments
+//# expect: error
+/* 블록 주석은 v0에 없다 */     //~ E0001
+fn f() -> Int { 1 }

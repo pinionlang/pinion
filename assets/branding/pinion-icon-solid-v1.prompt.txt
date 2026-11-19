@@ -1,0 +1,3 @@
+Edit this Pinion programming language icon. Preserve the ivory .pi lettering exactly in shape, size, position, spacing and color. Replace ALL background with a completely opaque uniform solid British Racing Green #004225, edge to edge across the entire square canvas including all four corners, the p counter, all transparent holes and dark blotches. Remove the rounded-square boundary by filling outside it with the exact same green. No transparency anywhere. Flat two-color logo, no gradients, shadows, texture, glow or additional text. Only change background; retain the original monogram.
+
+Generated with built-in image_gen, editing pith-icon-concept-v1.png.

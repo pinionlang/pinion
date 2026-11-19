@@ -1,0 +1,155 @@
+// 규칙: DESIGN.md 3.10 — enum, match 완전성, 와일드카드 규칙
+
+//# case: missing-variant
+//# expect: error
+enum Light {
+  Red
+  Yellow
+  Green
+}
+
+fn next(l: Light) -> Light {
+  match l {                     //~ E2001
+    Red => Light.Green
+    Green => Light.Yellow
+  }
+}
+
+//# case: single-enum-wildcard-banned
+//# expect: error
+enum Light {
+  Red
+  Yellow
+  Green
+}
+
+fn is_red(l: Light) -> Bool {
+  match l {
+    Red => true
+    _ => false                  //~ E2002
+  }
+}
+
+//# case: single-enum-catchall-binding-banned
+//# expect: error
+enum Light {
+  Red
+  Yellow
+  Green
+}
+
+fn is_red(l: Light) -> Bool {
+  match l {
+    Red => true
+    other => false              //~ E2002
+  }
+}
+
+//# case: list-variants-with-or
+//# expect: ok
+enum Light {
+  Red
+  Yellow
+  Green
+}
+
+fn is_red(l: Light) -> Bool {
+  match l {
+    Red => true
+    Yellow | Green => false
+  }
+}
+
+//# case: wildcard-inside-payload-allowed
+//# expect: ok
+enum Shape {
+  Circle(r: Int)
+  Rect(w: Int, h: Int)
+}
+
+fn kind(s: Shape) -> Str {
+  match s {
+    Circle(_) => "circle"
+    Rect(_, _) => "rect"
+  }
+}
+
+//# case: tuple-wildcard-allowed
+//# expect: ok
+enum State {
+  Idle
+  Running
+  Done
+}
+
+enum Event {
+  Start
+  Finish
+}
+
+fn step(s: State, e: Event) -> State? {
+  match (s, e) {
+    (Idle, Start) => State.Running
+    (Running, Finish) => State.Done
+    _ => None                   // 새 State 변형이 추가되어도 여기로 흡수된다 (알려진 한계)
+  }
+}
+
+//# case: tuple-wrap-bypass-is-known-limit
+//# expect: ok
+// 경계 사례: 단일 enum을 튜플로 감싸면 E2002를 피할 수 있다.
+// 완전한 변경 감지가 아니라는 점을 레퍼런스에 명시하고, outline이 흡수 범위를 보여준다.
+enum Light {
+  Red
+  Yellow
+  Green
+}
+
+fn is_red(l: Light) -> Bool {
+  match (l, true) {
+    (Red, _) => true
+    _ => false
+  }
+}
+
+//# case: guard-does-not-count
+//# expect: error
+enum Amount {
+  Value(Int)
+  Unknown
+}
+
+fn sign(a: Amount) -> Str {
+  match a {                     //~ E2001
+    Value(n) if n >= 0 => "plus"
+    Value(n) if n < 0 => "minus"
+    Unknown => "?"
+  }
+}
+
+//# case: or-pattern-bindings-must-match
+//# expect: error
+enum Shape {
+  Circle(r: Int)
+  Square(side: Int)
+  Label(text: Str)
+  Tag(id: Int)
+}
+
+fn size(s: Shape) -> Int {
+  match s {
+    Circle(n) | Square(n) => n  // 양쪽 모두 n: Int이므로 허용
+    Label(t) | Tag(t) => 0      //~ E2003
+  }
+}
+
+//# case: construct-needs-type-name
+//# expect: error
+enum Light {
+  Red
+  Green
+}
+
+fn start() -> Light {
+  Green                         //~ E1101
+}

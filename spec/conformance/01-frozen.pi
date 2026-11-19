@@ -1,0 +1,181 @@
+// 규칙: DESIGN.md 3.2, 3.3, 3.4 — 깊은 불변(Frozen)과 data 필드
+
+//# case: data-frozen-fields
+//# expect: ok
+enum Role {
+  Admin
+  Member(team: Str)
+}
+
+data User {
+  pub id: Int
+  pub name: Str
+  pub email: Str?
+  pub tags: List<Str>
+  pub scores: Map<Str, Int>
+  pub role: Role
+}
+
+//# case: data-list-of-class
+//# expect: error
+class Counter { mut n: Int = 0 }
+
+data Snapshot {
+  pub counters: List<Counter>   //~ E1401
+}
+
+//# case: data-interface-field
+//# expect: error
+interface Discount {
+  fn amount(total: Int) -> Int
+}
+
+data Order {
+  pub discounts: List<Discount>  //~ E1401
+}
+
+//# case: data-enum-with-class-payload
+//# expect: error
+class Conn { mut open: Bool = true }
+
+enum Payload {
+  Value(Int)
+  Live(Conn)
+}
+
+data Message {
+  pub body: Payload             //~ E1401
+}
+
+//# case: enum-with-class-payload-alone-is-fine
+//# expect: ok
+class Conn { mut open: Bool = true }
+
+enum Payload {
+  Value(Int)
+  Live(Conn)
+}
+
+fn describe(p: Payload) -> Str {
+  match p {
+    Value(n) => "value {n}"
+    Live(_) => "live"
+  }
+}
+
+//# case: generic-data-requires-frozen-arg
+//# expect: error
+class Counter { mut n: Int = 0 }
+
+data Box<T> {
+  pub value: T
+}
+
+fn wrap(c: Counter) -> Box<Counter> {   //~ E1402
+  Box(value: c)
+}
+
+//# case: generic-data-with-frozen-arg
+//# expect: run
+//# stdout: 3
+data Box<T> {
+  pub value: T
+}
+
+fn main() !io {
+  let b = Box(value: 3)
+  print("{b.value}")
+}
+
+//# case: class-can-hold-anything
+//# expect: ok
+class Counter { mut n: Int = 0 }
+
+interface Discount {
+  fn amount(total: Int) -> Int
+}
+
+class Registry {
+  counters: List<Counter>
+  discounts: List<Discount>
+  log: MutList<Str>
+}
+
+//# case: freeze-copies-structure-only
+//# expect: error
+class Counter { mut n: Int = 0 }
+
+data Snapshot {
+  pub items: List<Counter>      //~ E1401
+}
+
+fn snap(xs: MutList<Counter>) -> List<Counter> {
+  xs.freeze()                   // 허용: 결과는 List<Counter>. 원소는 그대로 class다
+}
+
+//# case: freeze-does-not-freeze-elements
+//# expect: run
+//# stdout: 1
+class Counter {
+  mut n: Int = 0
+  pub mut fn hit() { self.n += 1 }
+  pub fn value() -> Int { self.n }
+}
+
+fn main() !io {
+  let xs = MutList<Counter>()
+  xs.push(Counter())
+  let frozen = xs.freeze()
+  frozen[0].hit()               // 리스트 구조는 고정됐지만 원소 상태는 바뀐다
+  print("{xs[0].value()}")      // 같은 Counter 객체를 가리킨다
+}
+
+//# case: top-level-let-must-be-frozen
+//# expect: error
+class Counter { mut n: Int = 0 }
+
+let LIMIT = 10
+let NAMES = ["a", "b"]
+let SHARED = Counter()          //~ E1403
+
+//# case: no-top-level-var
+//# expect: error
+var count = 0                   //~ E1404
+
+//# case: recursive-enum-is-frozen
+//# expect: ok
+enum Tree {
+  Leaf(value: Int)
+  Node(left: Tree, right: Tree)
+}
+
+data Forest {
+  pub trees: List<Tree>         // 재귀 참조는 Frozen으로 가정하고 판정한다
+}
+
+//# case: recursive-data-through-option
+//# expect: ok
+data Link {
+  pub value: Int
+  pub next: Link?
+}
+
+//# case: uninhabitable-recursive-data
+//# expect: error
+data Loop {                     //~ E1406
+  pub again: Loop
+}
+
+//# case: polymorphic-recursion-banned
+//# expect: error
+data Nest<T> {
+  pub value: T
+  pub inner: Nest<List<T>>?     //~ E1407
+}
+
+//# case: data-has-no-mut
+//# expect: error
+data Point {
+  mut x: Int                    //~ E1405
+  pub y: Int
+}
