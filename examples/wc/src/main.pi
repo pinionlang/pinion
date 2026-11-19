@@ -1,0 +1,125 @@
+// A1 wc: count lines, words and chars of the files given as arguments.
+// lines = number of "\n", words = text.words().len(), chars = code points.
+import std/env
+import std/fs
+import std/io
+
+/// Counts for one file (or the total).
+data Counts {
+  pub lines: Int
+  pub words: Int
+  pub chars: Int
+}
+
+enum WcError {
+  /// No file arguments were given.
+  Usage
+  /// This many files could not be read.
+  Unreadable(count: Int)
+}
+
+/// Counts one text. Pure, so tests can call it directly.
+pub fn count(text: Str) -> Counts {
+  Counts(lines: text.count("\n"), words: text.words().len(), chars: text.len())
+}
+
+fn plus(a: Counts, b: Counts) -> Counts {
+  Counts(lines: a.lines + b.lines, words: a.words + b.words, chars: a.chars + b.chars)
+}
+
+fn row(c: Counts, label: Str) -> Str {
+  "{c.lines} {c.words} {c.chars} {label}"
+}
+
+fn describe(e: FsError) -> Str {
+  match e {
+    NotFound(p) => "{p}: no such file"
+    PermissionDenied(p) => "{p}: permission denied"
+    IsDirectory(p) => "{p}: is a directory"
+    InvalidUtf8(p) => "{p}: not valid UTF-8"
+    Other(p, msg) => "{p}: {msg}"
+  }
+}
+
+/// Prints one row per readable file, then a total row when more than one file was given.
+/// Unreadable files are reported on stderr and make the result an Err.
+fn run(paths: List<Str>) -> Result<(), WcError> !fs !io {
+  if paths.is_empty() {
+    io.eprint("usage: wc <file>...")
+    return Err(WcError.Usage)
+  }
+  // Same path given twice is read once.
+  let seen = MutMap<Str, Counts>()
+  var total = Counts(lines: 0, words: 0, chars: 0)
+  var failed = 0
+  for p in paths {
+    let cached = seen.get(p)
+    let counts = match cached {
+      Some(c) => Some(c)
+      None => match fs.read(p) {
+        Ok(text) => Some(count(text))
+        Err(e) => {
+          io.eprint("wc: {describe(e)}")
+          None
+        }
+      }
+    }
+    match counts {
+      Some(c) => {
+        seen.set(p, c)
+        print(row(c, p))
+        total = plus(total, c)
+      }
+      None => {
+        failed += 1
+      }
+    }
+  }
+  if paths.len() > 1 {
+    print(row(total, "total"))
+  }
+  if failed > 0 {
+    return Err(WcError.Unreadable(count: failed))
+  }
+  Ok(())
+}
+
+fn main() -> Result<(), WcError> !env !fs !io {
+  run(env.args())
+}
+
+test "counting units: newlines, words, code points" {
+  let c = count("가나 다\n라마\n")
+  assert c == Counts(lines: 2, words: 3, chars: 8)
+}
+
+test "no trailing newline means one fewer line" {
+  assert count("a b\nc").lines == 1
+  assert count("").words == 0
+}
+
+test "words split on any unicode whitespace" {
+  assert count("  hello\t세계 \n  pinion ").words == 3
+}
+
+test "single file prints one row" {
+  with fs: fs.fake(files: {"a.txt": "one two\nthree\n"}) {
+    assert run(["a.txt"]).is_ok()
+  }
+}
+
+test "multiple files succeed" {
+  with fs: fs.fake(files: {"a.txt": "x\n", "b.txt": "y z\n"}) {
+    assert run(["a.txt", "b.txt"]).is_ok()
+  }
+}
+
+test "missing file is an error but others are still counted" {
+  with fs: fs.fake(files: {"a.txt": "x\n"}) {
+    assert run(["a.txt", "nope.txt"]) == Err(WcError.Unreadable(count: 1))
+  }
+}
+
+test "no arguments is a usage error" {
+  assert run([]) == Err(WcError.Usage)
+}

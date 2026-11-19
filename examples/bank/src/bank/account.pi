@@ -1,0 +1,58 @@
+// Account value and its validation rules. Every construction path (constructor, `with`) runs `init`.
+
+pub enum BankError {
+  /// Deposits, withdrawals and transfers must be positive.
+  InvalidAmount(amount: Int)
+  /// A balance can never go below zero.
+  NegativeBalance(balance: Int)
+  /// The account holds less than was asked for.
+  Insufficient(balance: Int, needed: Int)
+  /// Account ids must be non-empty.
+  EmptyId
+  UnknownAccount(id: Str)
+  DuplicateAccount(id: Str)
+  SameAccount(id: Str)
+}
+
+/// A bank account. Balance is in cents and is never negative.
+pub data Account {
+  pub id: Str
+  pub owner: Str
+  pub balance: Int
+
+  init(id: Str, owner: Str, balance: Int) -> Result<Self, BankError> {
+    if id.trim().is_empty() { return Err(BankError.EmptyId) }
+    if balance < 0 { return Err(BankError.NegativeBalance(balance: balance)) }
+    Ok(Self { id: id, owner: owner, balance: balance })
+  }
+
+  pub fn deposit(amount: Int) -> Result<Account, BankError> {
+    if amount <= 0 { return Err(BankError.InvalidAmount(amount: amount)) }
+    self.with(balance: self.balance + amount)
+  }
+
+  pub fn withdraw(amount: Int) -> Result<Account, BankError> {
+    if amount <= 0 { return Err(BankError.InvalidAmount(amount: amount)) }
+    if amount > self.balance {
+      return Err(BankError.Insufficient(balance: self.balance, needed: amount))
+    }
+    self.with(balance: self.balance - amount)
+  }
+}
+
+/// Factory: a new account always starts at zero.
+pub fn open_empty(id: Str, owner: Str) -> Result<Account, BankError> {
+  Account(id: id, owner: owner, balance: 0)
+}
+
+pub fn describe(e: BankError) -> Str {
+  match e {
+    InvalidAmount(a) => "invalid amount {a}"
+    NegativeBalance(b) => "negative balance {b}"
+    Insufficient(b, n) => "insufficient funds: balance {b}, needed {n}"
+    EmptyId => "account id must not be empty"
+    UnknownAccount(id) => "unknown account {id}"
+    DuplicateAccount(id) => "account {id} already exists"
+    SameAccount(id) => "cannot transfer from {id} to itself"
+  }
+}

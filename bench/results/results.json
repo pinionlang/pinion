@@ -1,0 +1,516 @@
+{
+  "date": "2026-11-20T01:20:41+0900",
+  "machine": "Darwin arm64",
+  "runs": 5,
+  "token_method": "tiktoken cl100k_base",
+  "versions": {
+    "python": "3.13.5",
+    "go": "go version go1.27.4 darwin/arm64",
+    "node": "v22.17.0",
+    "tsc": "Version 5.8.3",
+    "pinion": "pinion: unknown command \"version\""
+  },
+  "langs": [
+    "pinion",
+    "python",
+    "go",
+    "ts"
+  ],
+  "tasks": [
+    {
+      "task": "fib",
+      "langs": {
+        "pinion": {
+          "size": {
+            "lines": 7,
+            "nonblank_lines": 6,
+            "bytes": 126,
+            "tokens": 56
+          },
+          "ok": true,
+          "median_s": 0.032328874978702515,
+          "min_s": 0.030673125002067536,
+          "times_s": [
+            0.7001774579985067,
+            0.041603832971304655,
+            0.032328874978702515,
+            0.030702207994181663,
+            0.030673125002067536
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "fib(30) = 832040\n",
+          "deterministic": true
+        },
+        "python": {
+          "size": {
+            "lines": 5,
+            "nonblank_lines": 3,
+            "bytes": 107,
+            "tokens": 45
+          },
+          "ok": true,
+          "median_s": 0.14935299998614937,
+          "min_s": 0.14333900000201538,
+          "times_s": [
+            0.14333900000201538,
+            0.14894329203525558,
+            0.15143045800505206,
+            0.14961283397860825,
+            0.14935299998614937
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "fib(30) = 832040\n",
+          "deterministic": true
+        },
+        "go": {
+          "size": {
+            "lines": 14,
+            "nonblank_lines": 11,
+            "bytes": 166,
+            "tokens": 62
+          },
+          "ok": true,
+          "median_s": 0.018186041968874633,
+          "min_s": 0.013631667010486126,
+          "times_s": [
+            0.07064079202245921,
+            0.017372542002703995,
+            0.018281208991538733,
+            0.013631667010486126,
+            0.018186041968874633
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "fib(30) = 832040\n",
+          "deterministic": true
+        },
+        "ts": {
+          "size": {
+            "lines": 5,
+            "nonblank_lines": 4,
+            "bytes": 120,
+            "tokens": 45
+          },
+          "ok": true,
+          "median_s": 0.04379879095358774,
+          "min_s": 0.04216558299958706,
+          "times_s": [
+            0.04757154197432101,
+            0.04907195799751207,
+            0.042972750030457973,
+            0.04379879095358774,
+            0.04216558299958706
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "fib(30) = 832040\n",
+          "deterministic": true
+        }
+      },
+      "expected_stdout": "fib(30) = 832040\n",
+      "match": "yes"
+    },
+    {
+      "task": "json_roundtrip",
+      "langs": {
+        "pinion": {
+          "size": {
+            "lines": 26,
+            "nonblank_lines": 24,
+            "bytes": 721,
+            "tokens": 248
+          },
+          "ok": true,
+          "median_s": 0.07566066697472706,
+          "min_s": 0.06928179104579613,
+          "times_s": [
+            0.7391954580089077,
+            0.06997391697950661,
+            0.06928179104579613,
+            0.07566066697472706,
+            0.07912766700610518
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "bytes = 1530721\nrecords = 20000 score = 10000805 active = 6710 tags = 40000\n",
+          "deterministic": true
+        },
+        "python": {
+          "size": {
+            "lines": 15,
+            "nonblank_lines": 14,
+            "bytes": 540,
+            "tokens": 184
+          },
+          "ok": true,
+          "median_s": 0.09359466697787866,
+          "min_s": 0.09070916700875387,
+          "times_s": [
+            0.09324608300812542,
+            0.09507508296519518,
+            0.09359466697787866,
+            0.09070916700875387,
+            0.0949781250092201
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "bytes = 1530721\nrecords = 20000 score = 10000805 active = 6710 tags = 40000\n",
+          "deterministic": true
+        },
+        "go": {
+          "size": {
+            "lines": 44,
+            "nonblank_lines": 41,
+            "bytes": 990,
+            "tokens": 341
+          },
+          "ok": true,
+          "median_s": 0.03895479196216911,
+          "min_s": 0.037288540974259377,
+          "times_s": [
+            0.1055639999685809,
+            0.03790766600286588,
+            0.037288540974259377,
+            0.03895479196216911,
+            0.040059541002847254
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "bytes = 1530721\nrecords = 20000 score = 10000805 active = 6710 tags = 40000\n",
+          "deterministic": true
+        },
+        "ts": {
+          "size": {
+            "lines": 21,
+            "nonblank_lines": 20,
+            "bytes": 715,
+            "tokens": 242
+          },
+          "ok": true,
+          "median_s": 0.065329916018527,
+          "min_s": 0.06361275003291667,
+          "times_s": [
+            0.06794525001896545,
+            0.06361275003291667,
+            0.06865641701733693,
+            0.06519425002625212,
+            0.065329916018527
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "bytes = 1530721\nrecords = 20000 score = 10000805 active = 6710 tags = 40000\n",
+          "deterministic": true
+        }
+      },
+      "expected_stdout": "bytes = 1530721\nrecords = 20000 score = 10000805 active = 6710 tags = 40000\n",
+      "match": "yes"
+    },
+    {
+      "task": "loop_sum",
+      "langs": {
+        "pinion": {
+          "size": {
+            "lines": 7,
+            "nonblank_lines": 7,
+            "bytes": 105,
+            "tokens": 48
+          },
+          "ok": true,
+          "median_s": 0.18616537499474362,
+          "min_s": 0.17597383400425315,
+          "times_s": [
+            0.8488781669875607,
+            0.18438279203837737,
+            0.17597383400425315,
+            0.18616537499474362,
+            0.2723685000091791
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "sum = 2499487497425\n",
+          "deterministic": true
+        },
+        "python": {
+          "size": {
+            "lines": 4,
+            "nonblank_lines": 4,
+            "bytes": 83,
+            "tokens": 41
+          },
+          "ok": true,
+          "median_s": 0.5362512090359814,
+          "min_s": 0.5294364160508849,
+          "times_s": [
+            0.5312218749895692,
+            0.564795000012964,
+            0.5362512090359814,
+            0.5294364160508849,
+            0.5368758749682456
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "sum = 2499487497425\n",
+          "deterministic": true
+        },
+        "go": {
+          "size": {
+            "lines": 11,
+            "nonblank_lines": 9,
+            "bytes": 156,
+            "tokens": 64
+          },
+          "ok": true,
+          "median_s": 0.013844292028807104,
+          "min_s": 0.012624333030544221,
+          "times_s": [
+            0.059452957997564226,
+            0.013844292028807104,
+            0.012624333030544221,
+            0.013686000020243227,
+            0.019422292010858655
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "sum = 2499487497425\n",
+          "deterministic": true
+        },
+        "ts": {
+          "size": {
+            "lines": 5,
+            "nonblank_lines": 5,
+            "bytes": 107,
+            "tokens": 51
+          },
+          "ok": true,
+          "median_s": 0.20693766704062,
+          "min_s": 0.1999544159625657,
+          "times_s": [
+            0.20510920899687335,
+            0.1999544159625657,
+            0.21006404201034456,
+            0.2072734169778414,
+            0.20693766704062
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "sum = 2499487497425\n",
+          "deterministic": true
+        }
+      },
+      "expected_stdout": "sum = 2499487497425\n",
+      "match": "yes"
+    },
+    {
+      "task": "sort",
+      "langs": {
+        "pinion": {
+          "size": {
+            "lines": 24,
+            "nonblank_lines": 22,
+            "bytes": 660,
+            "tokens": 234
+          },
+          "ok": true,
+          "median_s": 0.21294104197295383,
+          "min_s": 0.20339737500762567,
+          "times_s": [
+            0.8869334999471903,
+            0.21099870902253315,
+            0.20339737500762567,
+            0.21294104197295383,
+            0.2296770000248216
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "ints: min = 23 max = 999999 checksum = 822830066\nrecs: checksum = 250523456\n",
+          "deterministic": true
+        },
+        "python": {
+          "size": {
+            "lines": 18,
+            "nonblank_lines": 16,
+            "bytes": 456,
+            "tokens": 177
+          },
+          "ok": true,
+          "median_s": 0.21404024999355897,
+          "min_s": 0.2113236669683829,
+          "times_s": [
+            0.22268533398164436,
+            0.21404024999355897,
+            0.21707670897012576,
+            0.2113236669683829,
+            0.21239662496373057
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "ints: min = 23 max = 999999 checksum = 822830066\nrecs: checksum = 250523456\n",
+          "deterministic": true
+        },
+        "go": {
+          "size": {
+            "lines": 36,
+            "nonblank_lines": 32,
+            "bytes": 787,
+            "tokens": 297
+          },
+          "ok": true,
+          "median_s": 0.07576245802920312,
+          "min_s": 0.07507579197408631,
+          "times_s": [
+            0.12027487502200529,
+            0.07694975001504645,
+            0.07517775002634153,
+            0.07576245802920312,
+            0.07507579197408631
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "ints: min = 23 max = 999999 checksum = 822830066\nrecs: checksum = 250523456\n",
+          "deterministic": true
+        },
+        "ts": {
+          "size": {
+            "lines": 18,
+            "nonblank_lines": 17,
+            "bytes": 636,
+            "tokens": 227
+          },
+          "ok": true,
+          "median_s": 0.16825254197465256,
+          "min_s": 0.15970575000392273,
+          "times_s": [
+            0.15970575000392273,
+            0.16627175000030547,
+            0.16825254197465256,
+            0.1756459170137532,
+            0.3126057080226019
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "ints: min = 23 max = 999999 checksum = 822830066\nrecs: checksum = 250523456\n",
+          "deterministic": true
+        }
+      },
+      "expected_stdout": "ints: min = 23 max = 999999 checksum = 822830066\nrecs: checksum = 250523456\n",
+      "match": "yes"
+    },
+    {
+      "task": "wordfreq",
+      "langs": {
+        "pinion": {
+          "size": {
+            "lines": 31,
+            "nonblank_lines": 28,
+            "bytes": 824,
+            "tokens": 297
+          },
+          "ok": true,
+          "median_s": 0.10016441700281575,
+          "min_s": 0.09032983297947794,
+          "times_s": [
+            0.7489746249630116,
+            0.09032983297947794,
+            0.1004788750433363,
+            0.09161495795706287,
+            0.10016441700281575
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "distinct = 256\nrawa 1266\nvera 1262\nveda 1251\nyolo 1250\ndada 1248\ndaze 1247\npebu 1247\nveto 1247\npepe 1246\nlowa 1230\n",
+          "deterministic": true
+        },
+        "python": {
+          "size": {
+            "lines": 16,
+            "nonblank_lines": 14,
+            "bytes": 483,
+            "tokens": 192
+          },
+          "ok": true,
+          "median_s": 0.16983433294808492,
+          "min_s": 0.16556637501344085,
+          "times_s": [
+            0.16556637501344085,
+            0.17613700003130361,
+            0.16799012501724064,
+            0.16983433294808492,
+            0.17358916602097452
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "distinct = 256\nrawa 1266\nvera 1262\nveda 1251\nyolo 1250\ndada 1248\ndaze 1247\npebu 1247\nveto 1247\npepe 1246\nlowa 1230\n",
+          "deterministic": true
+        },
+        "go": {
+          "size": {
+            "lines": 43,
+            "nonblank_lines": 38,
+            "bytes": 928,
+            "tokens": 328
+          },
+          "ok": true,
+          "median_s": 0.03407520899781957,
+          "min_s": 0.02903816697653383,
+          "times_s": [
+            0.07789433299330994,
+            0.034177916997577995,
+            0.03407520899781957,
+            0.02903816697653383,
+            0.0309329999727197
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "distinct = 256\nrawa 1266\nvera 1262\nveda 1251\nyolo 1250\ndada 1248\ndaze 1247\npebu 1247\nveto 1247\npepe 1246\nlowa 1230\n",
+          "deterministic": true
+        },
+        "ts": {
+          "size": {
+            "lines": 19,
+            "nonblank_lines": 17,
+            "bytes": 666,
+            "tokens": 268
+          },
+          "ok": true,
+          "median_s": 0.126686624949798,
+          "min_s": 0.1170187090174295,
+          "times_s": [
+            0.12775270798010752,
+            0.1170187090174295,
+            0.1301201669848524,
+            0.126686624949798,
+            0.12357916700420901
+          ],
+          "exit_codes": [
+            0
+          ],
+          "stdout": "distinct = 256\nrawa 1266\nvera 1262\nveda 1251\nyolo 1250\ndada 1248\ndaze 1247\npebu 1247\nveto 1247\npepe 1246\nlowa 1230\n",
+          "deterministic": true
+        }
+      },
+      "expected_stdout": "distinct = 256\nrawa 1266\nvera 1262\nveda 1251\nyolo 1250\ndada 1248\ndaze 1247\npebu 1247\nveto 1247\npepe 1246\nlowa 1230\n",
+      "match": "yes"
+    }
+  ]
+}

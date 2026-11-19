@@ -240,3 +240,37 @@ fn main() !io {
 fn main() {
   unreachable("never here")
 }
+
+//# case: ordering-needs-ord
+//# expect: error
+enum Light {
+  Red
+  Green
+}
+
+fn before(a: Light, b: Light) -> Bool {
+  a < b                         //~ E1209
+}
+
+//# case: option-methods-on-collection-values
+//# expect: run
+//# stdout: true
+//# stdout: 3
+// Some(x)의 x가 리스트여도 옵션 메서드는 옵션에 대해 동작한다
+fn main() !io {
+  let xs: List<Int>? = [1, 2, 3]
+  print("{xs.is_some()}")
+  let n = xs.map(l => l.len()) ?? 0
+  print("{n}")
+}
+
+//# case: guard-with-plain-bool
+//# expect: run
+//# stdout: yes
+fn main() !io {
+  let b = true
+  match 1 {
+    _ if b => print("yes")
+    _ => print("no")
+  }
+}

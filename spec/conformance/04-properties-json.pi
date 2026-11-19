@@ -185,7 +185,7 @@ data User {
 }
 
 fn main() !io {
-  match json.decode<User>("{\"name\":\"a\",\"age\":3}") {
+  match json.decode<User>("\{\"name\":\"a\",\"age\":3\}") {
     Ok(_) => print("ok")
     Err(e) => print("{e.code()} {e.path}")
   }
@@ -202,7 +202,7 @@ data User {
 }
 
 fn main() !io {
-  let u = json.decode<User>("{\"name\":\"a\"}").ok() else return
+  let u = json.decode<User>("\{\"name\":\"a\"\}").ok() else return
   print(u.email ?? "none")
 }
 

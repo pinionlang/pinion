@@ -1,0 +1,74 @@
+// Domain model and JSON persistence for the todo CLI.
+import std/fs
+import std/json
+
+pub enum Status {
+  Open
+  Done
+}
+
+/// One todo item. Stored as-is in todo.json.
+pub data Todo {
+  pub id: Int
+  pub title: Str
+  pub status: Status
+}
+
+pub enum TodoError {
+  /// Reading or writing the store failed.
+  Fs(FsError)
+  /// The store file is not a valid todo list.
+  Json(JsonError)
+  /// Wrong command line.
+  Usage(msg: Str)
+  /// No todo has this id.
+  NotFound(id: Int)
+}
+
+/// Loads all todos. A missing file is an empty list.
+pub fn load(path: Str) -> Result<List<Todo>, TodoError> !fs {
+  if !fs.exists(path) {
+    return Ok([])
+  }
+  let text = fs.read(path).map_err(TodoError.Fs)?
+  json.decode<List<Todo>>(text).map_err(TodoError.Json)
+}
+
+pub fn save(path: Str, todos: List<Todo>) -> Result<(), TodoError> !fs {
+  fs.write(path, json.encode(todos)).map_err(TodoError.Fs)
+}
+
+/// Appends a new open todo whose id is one more than the largest id.
+pub fn add(todos: List<Todo>, title: Str) -> List<Todo> {
+  let next = todos.fold(0, (m, t) => m.max(t.id)) + 1
+  todos.append(Todo(id: next, title: title, status: Status.Open))
+}
+
+/// Marks the todo with `id` as done.
+pub fn mark_done(todos: List<Todo>, id: Int) -> Result<List<Todo>, TodoError> {
+  if !todos.any(t => t.id == id) {
+    return Err(TodoError.NotFound(id: id))
+  }
+  Ok(todos.map(t => if t.id == id { t.with(status: Status.Done) } else { t }))
+}
+
+/// One line of `todo list` output, e.g. "2 [x] buy milk".
+pub fn render(t: Todo) -> Str {
+  let mark = match t.status {
+    Open => " "
+    Done => "x"
+  }
+  "{t.id} [{mark}] {t.title}"
+}
+
+pub fn describe(e: TodoError) -> Str {
+  match e {
+    Fs(NotFound(p)) => "cannot read {p}"
+    Fs(PermissionDenied(p)) => "permission denied: {p}"
+    Fs(IsDirectory(p) | InvalidUtf8(p)) => "unusable store file: {p}"
+    Fs(Other(p, msg)) => "{p}: {msg}"
+    Json(j) => "corrupt store ({j.code()} at {j.path})"
+    Usage(msg) => "usage: {msg}"
+    NotFound(id) => "no todo with id {id}"
+  }
+}

@@ -1,0 +1,133 @@
+// A3 bank: accounts, transfers and their failure cases.
+import bank/account
+import bank/ledger
+
+fn show(b: ledger.Bank, id: Str) !io {
+  let line = match b.balance(id) {
+    Ok(n) => "{id}: {n}"
+    Err(e) => "{id}: {account.describe(e)}"
+  }
+  print(line)
+}
+
+fn report(label: Str, r: Result<(), account.BankError>) !io {
+  match r {
+    Ok(_) => print("{label}: ok")
+    Err(e) => print("{label}: {account.describe(e)}")
+  }
+}
+
+fn main() -> Result<(), account.BankError> !io {
+  let bank = ledger.new_bank(ledger.new_memory_ledger())
+  let _ = bank.open("alice", "Alice", 100)?
+  let _ = bank.open("bob", "Bob", 20)?
+  report("transfer alice->bob 30", bank.transfer("alice", "bob", 30))
+  report("transfer bob->alice 500", bank.transfer("bob", "alice", 500))
+  report("transfer alice->alice 1", bank.transfer("alice", "alice", 1))
+  report("transfer alice->carol 1", bank.transfer("alice", "carol", 1))
+  report("deposit bob -5", bank.deposit("bob", -5).map(a => ()))
+  report("open dave -1", bank.open("dave", "Dave", -1).map(a => ()))
+  show(bank, "alice")
+  show(bank, "bob")
+  print("total: {bank.total()}")
+  Ok(())
+}
+
+// ---- Account (value + init validation) ----
+
+test "init rejects a negative balance" {
+  assert account.Account(id: "a", owner: "A", balance: -1) == Err(account.BankError.NegativeBalance(balance: -1))
+}
+
+test "init rejects an empty id" {
+  assert account.Account(id: "  ", owner: "A", balance: 0) == Err(account.BankError.EmptyId)
+}
+
+test "factory opens at zero" {
+  let a = account.open_empty("a", "A").ok() else {
+    assert false
+    return
+  }
+  assert a.balance == 0
+}
+
+test "withdraw and deposit return new values" {
+  let a = account.Account(id: "a", owner: "A", balance: 50).ok() else {
+    assert false
+    return
+  }
+  let b = a.withdraw(20).ok() else {
+    assert false
+    return
+  }
+  assert b.balance == 30
+  assert a.balance == 50   // data is a value: the original is unchanged
+  assert (b.deposit(5).ok().map(x => x.balance) ?? 0) == 35
+}
+
+test "withdraw more than the balance is Insufficient" {
+  let a = account.Account(id: "a", owner: "A", balance: 10).ok() else {
+    assert false
+    return
+  }
+  assert a.withdraw(11) == Err(account.BankError.Insufficient(balance: 10, needed: 11))
+}
+
+test "non-positive amounts are rejected" {
+  let a = account.Account(id: "a", owner: "A", balance: 10).ok() else {
+    assert false
+    return
+  }
+  assert a.withdraw(0) == Err(account.BankError.InvalidAmount(amount: 0))
+  assert a.deposit(-3) == Err(account.BankError.InvalidAmount(amount: -3))
+}
+
+test "with re-runs init" {
+  let a = account.Account(id: "a", owner: "A", balance: 10).ok() else {
+    assert false
+    return
+  }
+  assert a.with(balance: -5) == Err(account.BankError.NegativeBalance(balance: -5))
+}
+
+// ---- Bank over the Ledger interface ----
+
+test "transfer moves money" {
+  let bank = ledger.new_bank(ledger.new_memory_ledger())
+  let _ = bank.open("a", "A", 100)
+  let _ = bank.open("b", "B", 0)
+  assert bank.transfer("a", "b", 40).is_ok()
+  assert bank.balance("a") == Ok(60)
+  assert bank.balance("b") == Ok(40)
+  assert bank.total() == 100
+}
+
+test "failed transfer writes nothing" {
+  let mem = ledger.new_memory_ledger()
+  let bank = ledger.new_bank(mem)
+  let _ = bank.open("a", "A", 10)
+  let _ = bank.open("b", "B", 0)
+  let before = mem.writes
+  assert bank.transfer("a", "b", 11) == Err(account.BankError.Insufficient(balance: 10, needed: 11))
+  assert bank.transfer("a", "zed", 1) == Err(account.BankError.UnknownAccount(id: "zed"))
+  assert mem.writes == before   // the MemoryLedger is shared by reference with the Bank
+  assert bank.balance("a") == Ok(10)
+}
+
+test "transfer to the same account is rejected" {
+  let bank = ledger.new_bank(ledger.new_memory_ledger())
+  let _ = bank.open("a", "A", 10)
+  assert bank.transfer("a", "a", 1) == Err(account.BankError.SameAccount(id: "a"))
+}
+
+test "duplicate open is rejected" {
+  let bank = ledger.new_bank(ledger.new_memory_ledger())
+  let _ = bank.open("a", "A", 10)
+  assert bank.open("a", "A2", 0).is_err()
+  assert bank.balance("a") == Ok(10)
+}
+
+test "unknown account balance" {
+  let bank = ledger.new_bank(ledger.new_memory_ledger())
+  assert bank.balance("nobody") == Err(account.BankError.UnknownAccount(id: "nobody"))
+}

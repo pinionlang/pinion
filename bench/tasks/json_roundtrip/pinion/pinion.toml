@@ -1,0 +1,3 @@
+[project]
+name = "json_roundtrip"
+version = "0.1.0"

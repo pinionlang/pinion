@@ -1,0 +1,94 @@
+// Storage interface, an in-memory implementation, and the Bank service composed over it.
+import bank/account
+
+/// Where accounts are kept. Implementations decide how.
+pub interface Ledger {
+  fn get(id: Str) -> account.Account?
+  /// Inserts or replaces the account with the same id.
+  mut fn put(a: account.Account)
+  /// Ids in insertion order.
+  fn ids() -> List<Str>
+}
+
+/// Ledger kept in memory. Counts writes so tests can check that failed operations write nothing.
+pub class MemoryLedger : Ledger {
+  accounts: MutMap<Str, account.Account> = MutMap<Str, account.Account>()
+  pub mut writes: Int = 0
+
+  fn get(id: Str) -> account.Account? {
+    self.accounts.get(id)
+  }
+
+  mut fn put(a: account.Account) {
+    self.accounts.set(a.id, a)
+    self.writes += 1
+  }
+
+  fn ids() -> List<Str> {
+    self.accounts.keys()
+  }
+}
+
+/// Banking operations. Holds a Ledger by composition; it does not care which implementation.
+pub class Bank {
+  ledger: Ledger
+
+  pub fn open(id: Str, owner: Str, initial: Int) -> Result<account.Account, account.BankError> {
+    if self.ledger.get(id).is_some() {
+      return Err(account.BankError.DuplicateAccount(id: id))
+    }
+    let a = account.Account(id: id, owner: owner, balance: initial)?
+    self.ledger.put(a)
+    Ok(a)
+  }
+
+  pub fn balance(id: Str) -> Result<Int, account.BankError> {
+    let a = self.find(id)?
+    Ok(a.balance)
+  }
+
+  pub fn deposit(id: Str, amount: Int) -> Result<account.Account, account.BankError> {
+    let a = self.find(id)?.deposit(amount)?
+    self.ledger.put(a)
+    Ok(a)
+  }
+
+  pub fn withdraw(id: Str, amount: Int) -> Result<account.Account, account.BankError> {
+    let a = self.find(id)?.withdraw(amount)?
+    self.ledger.put(a)
+    Ok(a)
+  }
+
+  /// Moves `amount` from one account to another. Both new values are computed before
+  /// anything is written, so a failed transfer leaves the ledger unchanged.
+  pub fn transfer(from: Str, to: Str, amount: Int) -> Result<(), account.BankError> {
+    if from == to {
+      return Err(account.BankError.SameAccount(id: from))
+    }
+    let src = self.find(from)?.withdraw(amount)?
+    let dst = self.find(to)?.deposit(amount)?
+    self.ledger.put(src)
+    self.ledger.put(dst)
+    Ok(())
+  }
+
+  /// Sum of all balances. Overflow here is a program defect (R0101), not a business error.
+  pub fn total() -> Int {
+    self.ledger.ids().map(id => self.ledger.get(id).map(a => a.balance) ?? 0).sum()
+  }
+
+  fn find(id: Str) -> Result<account.Account, account.BankError> {
+    let a = self.ledger.get(id) else return Err(account.BankError.UnknownAccount(id: id))
+    Ok(a)
+  }
+}
+
+/// MemoryLedger has a private field, so other modules build it through this factory.
+pub fn new_memory_ledger() -> MemoryLedger {
+  MemoryLedger()
+}
+
+/// Bank has a private field, so other modules build it through this factory.
+pub fn new_bank(ledger: Ledger) -> Bank {
+  Bank(ledger: ledger)
+}

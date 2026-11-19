@@ -1,0 +1,26 @@
+import std/json
+
+data Rec {
+  pub id: Int
+  pub name: Str
+  pub tags: List<Str>
+  pub score: Int
+  pub active: Bool
+}
+
+fn main() -> Result<(), JsonError> !io {
+  var x = 7
+  let recs = MutList<Rec>()
+  for i in 0..20000 {
+    x = x * 48271 % 2147483647
+    recs.push(Rec(id: i, name: "user{i}", tags: ["t{i % 7}", "g{i % 11}"], score: x % 1000, active: x % 3 == 0))
+  }
+  let text = json.encode(recs.freeze())
+  let back = json.decode<List<Rec>>(text)?
+  let score = back.map(r => r.score).sum()
+  let active = back.filter(r => r.active).len()
+  let tags = back.map(r => r.tags.len()).sum()
+  print("bytes = {text.byte_len()}")
+  print("records = {back.len()} score = {score} active = {active} tags = {tags}")
+  Ok(())
+}

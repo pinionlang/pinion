@@ -412,6 +412,10 @@ type MemberExpr struct {
 	Pos  Pos
 	X    Expr
 	Name string
+	// OnOption is set by the checker when X has type T? and Name is an option
+	// method (is_some, is_none, map). The dynamic backend represents Some(x)
+	// as x, so it needs this to dispatch to the option method.
+	OnOption bool
 }
 
 type IndexExpr struct {

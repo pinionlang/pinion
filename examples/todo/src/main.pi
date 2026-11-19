@@ -1,0 +1,117 @@
+// A2 todo: `todo add <title>`, `todo done <id>`, `todo list`. Data lives in ./todo.json.
+import std/env
+import std/fs
+import std/io
+import todo/store
+
+let STORE_PATH = "todo.json"
+let USAGE = "todo add <title> | todo done <id> | todo list"
+
+/// Runs one command against the store at `path`.
+fn run(args: List<Str>, path: Str) -> Result<(), store.TodoError> !fs !io {
+  let cmd = args.get(0) else return Err(store.TodoError.Usage(msg: USAGE))
+  let rest = args.slice(1, args.len())
+  if cmd == "add" {
+    let title = rest.join(" ").trim()
+    if title.is_empty() {
+      return Err(store.TodoError.Usage(msg: "todo add <title>"))
+    }
+    let todos = store.add(store.load(path)?, title)
+    store.save(path, todos)?
+    let added = todos.last() else return Ok(())
+    print("added {added.id}: {added.title}")
+    return Ok(())
+  }
+  if cmd == "done" {
+    let text = rest.get(0) else return Err(store.TodoError.Usage(msg: "todo done <id>"))
+    let id = Int.parse(text).ok() else return Err(store.TodoError.Usage(msg: "todo done <id>"))
+    let todos = store.mark_done(store.load(path)?, id)?
+    store.save(path, todos)?
+    print("done {id}")
+    return Ok(())
+  }
+  if cmd == "list" {
+    let todos = store.load(path)?
+    if todos.is_empty() {
+      print("no todos")
+    }
+    for t in todos {
+      print(store.render(t))
+    }
+    return Ok(())
+  }
+  Err(store.TodoError.Usage(msg: USAGE))
+}
+
+fn main() -> Result<(), store.TodoError> !env !fs !io {
+  match run(env.args(), STORE_PATH) {
+    Ok(_) => Ok(())
+    Err(e) => {
+      io.eprint("todo: {store.describe(e)}")
+      Err(e)
+    }
+  }
+}
+
+test "add creates the store file with an open todo" {
+  with fs: fs.fake(files: {}) {
+    assert run(["add", "buy", "milk"], "todo.json").is_ok()
+    let todos = store.load("todo.json").ok() ?? []
+    assert todos == [store.Todo(id: 1, title: "buy milk", status: store.Status.Open)]
+  }
+}
+
+test "store format is adjacent-tagged JSON" {
+  with fs: fs.fake(files: {}) {
+    assert run(["add", "a"], "todo.json").is_ok()
+    assert fs.read("todo.json").ok() == Some("[\{\"id\":1,\"title\":\"a\",\"status\":\{\"tag\":\"Open\"\}\}]")
+  }
+}
+
+test "ids keep increasing" {
+  let existing = "[\{\"id\":7,\"title\":\"old\",\"status\":\{\"tag\":\"Done\"\}\}]"
+  with fs: fs.fake(files: {"todo.json": existing}) {
+    assert run(["add", "new"], "todo.json").is_ok()
+    let todos = store.load("todo.json").ok() ?? []
+    assert todos.map(t => t.id) == [7, 8]
+  }
+}
+
+test "done marks only that todo" {
+  let two = "[\{\"id\":1,\"title\":\"a\",\"status\":\{\"tag\":\"Open\"\}\},\{\"id\":2,\"title\":\"b\",\"status\":\{\"tag\":\"Open\"\}\}]"
+  with fs: fs.fake(files: {"todo.json": two}) {
+    assert run(["done", "2"], "todo.json").is_ok()
+    let todos = store.load("todo.json").ok() ?? []
+    assert todos.map(t => store.render(t)) == ["1 [ ] a", "2 [x] b"]
+  }
+}
+
+test "done with unknown id is NotFound" {
+  with fs: fs.fake(files: {"todo.json": "[]"}) {
+    assert run(["done", "9"], "todo.json") == Err(store.TodoError.NotFound(id: 9))
+  }
+}
+
+test "done with a non-number id is a usage error" {
+  assert run(["done", "x"], "todo.json").is_err()
+}
+
+test "corrupt store is a Json error" {
+  with fs: fs.fake(files: {"todo.json": "\{not json"}) {
+    let r = run(["list"], "todo.json")
+    let msg = match r {
+      Ok(_) => "ok"
+      Err(e) => store.describe(e)
+    }
+    assert msg.starts_with("corrupt store")
+  }
+}
+
+test "list on missing store says no todos" {
+  assert run(["list"], "todo.json").is_ok()
+}
+
+test "unknown command is a usage error" {
+  assert run(["frobnicate"], "todo.json").is_err()
+  assert run([], "todo.json").is_err()
+}
