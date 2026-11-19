@@ -77,6 +77,9 @@ func (g *fnGen) enumOf(x ast.Expr) (*module, *ast.EnumDecl, string) {
 				return m, d, ""
 			}
 		}
+		if g.stdModule(x.X) == "json" && x.Name == "Json" {
+			return nil, nil, "Json"
+		}
 	}
 	return nil, nil, ""
 }

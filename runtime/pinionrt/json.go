@@ -104,6 +104,10 @@ func encodeJSON(b *strings.Builder, v Value) {
 		}
 		b.WriteByte('}')
 	case *Enum:
+		if x.V.T == JsonEnum {
+			encodeJSONValue(b, x)
+			return
+		}
 		b.WriteString(`{"tag":`)
 		writeJSONString(b, x.V.Name)
 		if len(x.F) > 0 {
@@ -582,6 +586,9 @@ func decodeNode(t *Type, n *jnode, path string) (Value, *jsonErr) {
 		}
 		return &Object{T: ti, F: vals}, nil
 	case KEnum:
+		if t.Enum == JsonEnum {
+			return nodeToJSON(n, path)
+		}
 		return decodeEnum(t, n, path)
 	case KResult, KTuple, KUnit, KRange, KFn:
 		return nil, &jsonErr{"TypeMismatch", path, "type is not decodable"}

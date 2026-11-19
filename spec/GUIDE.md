@@ -45,7 +45,7 @@ print("hi {name}")
 - Expected failure: `Result<T, E>` / `T?`. Bugs (index out of range, overflow, `todo()`): abort.
 - `?` only on `Result`. Convert errors explicitly: `x.map_err(AppError.Db)?`.
 - `T?`: `opt ?? default`, `let v = opt else return ...`. To treat a Result as optional: `r.ok() ?? d`.
-- Unused `Result` is an error; discard with `let _ = ...`.
+- Unused `Result` is an error; discard with `let _ = ...`. `let _ = opt else { ... }` checks presence only.
 - Write `(a ?? 0) + 1` — mixing `??` with other operators needs parentheses.
 
 ## Effects
@@ -99,6 +99,13 @@ app.post("/books", req => {
 })
 app.listen(8080)                               // !net; blocks
 ```
+- Validating a free-form body (null vs missing, int vs float): `req.json_value()` gives a `json.Json` (`import std/json`). Lookups return `T?` and chain through `Json?`:
+```pinion
+let body = req.json_value().ok() else { return http.error(400, "invalid json") }
+let title = body.get("title").as_str() else { return http.error(400, "title: string") }
+if body.has("age") && body.get("age").as_int().is_none() { return http.error(400, "age: integer") }
+```
+  `json.Json` = `Null | Bool | Int | Float | Str | Arr(List<Json>) | Obj(Map<Str, Json>)`; also `at(i)`, `as_float()` (Int too), `as_bool()`, `as_list()`, `as_obj()`, `is_null()`, `keys()`, `kind()`; build with `json.Json.Int(3)`, `json.parse(s)`. `http.json` accepts `Json`, `List<data>`, `Map<Str, V>`.
 - `req.method`, `req.path`, `req.params`, `req.query`, `req.headers` (lowercase names), `req.body`; `resp.status`, `resp.body`, `resp.headers`, `resp.json<T>()`.
 - Unknown path -> 404 `{"error":"not found"}`; wrong method -> 405. Literal segments beat `:params`.
 - Registering a handler carries its effects (handler uses fs -> caller declares `!fs`). Handlers run one at a time, so captured class/`Mut*` state is safe.

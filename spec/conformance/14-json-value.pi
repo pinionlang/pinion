@@ -1,0 +1,132 @@
+// 규칙: DESIGN.md 3.7.1(동적 JSON 값 json.Json), 3.21(req.json_value), let-else 와일드카드
+
+//# case: json-value-parse-and-query
+//# expect: run
+//# stdout: {"name":"Ann","age":30,"score":1.5,"tags":["a"],"note":null}
+//# stdout: obj name,age,score,tags,note
+//# stdout: Ann 30 -1 30.0 1.5
+//# stdout: true false true
+//# stdout: a none
+//# stdout: int
+import std/json
+
+fn main() !io {
+  let j = json.parse("\{\"name\":\"Ann\",\"age\":30,\"score\":1.5,\"tags\":[\"a\"],\"note\":null\}").ok() else {
+    return
+  }
+  print(json.encode(j))
+  print("{j.kind()} {j.keys().join(",")}")
+  print("{j.get("name").as_str() ?? "?"} {j.get("age").as_int() ?? -1} {j.get("score").as_int() ?? -1} {j.get("age").as_float() ?? 0.0} {j.get("score").as_float() ?? 0.0}")
+  print("{j.has("note")} {j.has("missing")} {j.get("note").map(n => n.is_null()) ?? false}")
+  print("{j.get("tags").at(0).as_str() ?? "none"} {j.get("tags").at(5).as_str() ?? "none"}")
+  print(j.get("age").map(a => a.kind()) ?? "missing")
+}
+
+//# case: json-value-construct-match-roundtrip
+//# expect: tests
+//# test: roundtrip -> passed
+//# test: errors -> passed
+//# test: decode-field -> passed
+import std/json
+
+data Event {
+  pub kind: Str
+  pub payload: json.Json
+}
+
+fn size(j: json.Json) -> Int {
+  match j {
+    Null | Bool(_) | Int(_) | Float(_) | Str(_) => 1
+    Arr(xs) => xs.sum_by(size)
+    Obj(m) => m.values().sum_by(size)
+  }
+}
+
+test "roundtrip" {
+  let v = json.Json.Obj({"n": json.Json.Int(3), "f": json.Json.Float(2.0), "z": json.Json.Null,
+    "xs": json.Json.Arr([json.Json.Bool(true), json.Json.Str("s")])})
+  assert json.encode(v) == "\{\"n\":3,\"f\":2.0,\"z\":null,\"xs\":[true,\"s\"]\}"
+  assert json.parse(json.encode(v)) == Ok(v)
+  assert size(v) == 5
+  assert json.parse("12345678901234567890") == Ok(json.Json.Float(12345678901234567890.0))
+  assert json.parse("-0") == Ok(json.Json.Int(0))
+  assert json.parse("1e2") == Ok(json.Json.Float(100.0))
+  assert json.Json.Str("x").get("a") == None
+  assert json.Json.Int(1).keys() == []
+}
+
+test "errors" {
+  let codes = ["\{\"a\":1,\"a\":2\}", "[1] x", "NaN", "Infinity", "[1,]", "1e999", ""]
+    .map(s => json.parse(s).map_err(e => e.code()))
+  assert codes == [Err("duplicate_key"), Err("syntax"), Err("syntax"), Err("syntax"), Err("syntax"), Err("out_of_range"), Err("syntax")]
+  let e = json.parse("\{\"a\":\{\"b\":1,\"b\":2\}\}")
+  assert e.map_err(x => x.path) == Err("$.a.b")
+}
+
+test "decode-field" {
+  let ev = json.decode<Event>("\{\"kind\":\"k\",\"payload\":\{\"x\":[1,null]\}\}")
+  assert ev.map(x => x.payload.get("x").at(1).map(n => n.is_null()) ?? false) == Ok(true)
+  assert ev.map(x => json.encode(x)) == Ok("\{\"kind\":\"k\",\"payload\":\{\"x\":[1,null]\}\}")
+}
+
+//# case: json-value-http
+//# expect: tests
+//# test: validate -> passed
+import std/http
+import std/json
+
+fn app() -> http.App {
+  let a = http.App()
+  a.post("/users", req => {
+    let body = req.json_value().ok() else { return http.error(400, "invalid json") }
+    let name = body.get("name").as_str() else { return http.error(400, "name: string required") }
+    if body.has("age") && body.get("age").as_int().is_none() { return http.error(400, "age: integer") }
+    http.json(json.Json.Obj({"name": json.Json.Str(name), "age": body.get("age") ?? json.Json.Null}), status: 201)
+  })
+  a
+}
+
+test "validate" {
+  let a = app()
+  let ok = a.handle(http.request("POST", "/users", body: "\{\"name\":\"A\",\"age\":3\}"))
+  assert ok.status == 201
+  assert ok.json_value().map(j => j.get("age").as_int()) == Ok(Some(3))
+  assert a.handle(http.request("POST", "/users", body: "\{\"name\":null\}")).status == 400
+  assert a.handle(http.request("POST", "/users", body: "\{\"name\":\"A\",\"age\":3.5\}")).status == 400
+  assert a.handle(http.request("POST", "/users", body: "\{\"name\":\"A\"\}")).body == "\{\"name\":\"A\",\"age\":null\}"
+  assert a.handle(http.request("POST", "/users", body: "\{")).status == 400
+}
+
+//# case: json-value-type-errors
+//# expect: error
+import std/json
+
+fn f(j: json.Json) -> Int {
+  let n: Int = j.get("n") //~ E1201
+  match j { //~ E2001
+    Null => 0
+    Int(i) => i
+  }
+}
+
+//# case: let-wildcard-else
+//# expect: run
+//# stdout: some
+//# stdout: none
+//# stdout: 3
+fn check(o: Int?) -> Str {
+  let _ = o else { return "none" }
+  "some"
+}
+
+fn main() !io {
+  print(check(Some(1)))
+  print(check(None))
+  let _ = check(None)
+  var count = 0
+  for _ in [1, 2, 3] {
+    count = count + 1
+  }
+  let (_, _) = (1, 2)
+  print("{count}")
+}

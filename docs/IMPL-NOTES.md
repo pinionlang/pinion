@@ -20,3 +20,5 @@
 - `std/http`: `runtime/pinionrt/http.go`. `Request`·`Response`는 내장 `TypeInfo` 객체, `App`은 클래스 객체(상태는 Go 쪽 표). 실제 서버는 `net/http`, 핸들러 실행은 전역 잠금 `serveMu`로 직렬화한다. 테스트에서는 `netReal = false`라 `listen`이 `R0109`.
 - 타입 인자가 있는 메서드 호출(`req.json<T>()`)은 `rt.MT(recv, name, []*rt.Type{...}, ...)`로 만든다. 타입 인자는 디코드에만 쓰고, 나머지 수신자는 `rt.M`으로 넘긴다.
 - 표준 함수의 생략 가능한 인자 기본값은 `stdDefaults`(이름 → 인자 위치 → 값)에 둔다.
+- `json.Json`: 검사기는 `stdEnv.buildJSONValue`(std/json 모듈 타입으로만 보임), 런타임은 `runtime/pinionrt/jsonvalue.go`의 `rt.JsonEnum`(`rt.BuiltinEnums["Json"]`). 코드 생성은 `json.Json` 한정 이름을 내장 enum으로 바꾼다(`enumOf`, `typeDescD`). 인코드·디코드는 `encodeJSON`/`decodeNode`에서 `JsonEnum`만 값 그대로 처리한다. `Json?` 수신자의 `get`/`at`/`as_*`는 검사기 `methodCall`에서 허용하고 런타임은 `None`에 대해 `None`을 돌려준다(`jsonLifted`).
+- `let PAT = opt else`는 언제나 먼저 `rt.IsNone` 검사를 한다(와일드카드도 같다). `for` 반복 변수는 `_ = x`로 사용 처리한다.

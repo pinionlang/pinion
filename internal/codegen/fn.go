@@ -230,6 +230,7 @@ func (g *fnGen) stmt(s ast.Stmt) {
 		it := g.expr(s.Iter)
 		x := g.fresh("_it")
 		g.open("for %s := range rt.Iter(%s) {", x, it)
+		g.emit("_ = %s", x)
 		g.push()
 		if bp, ok := s.Pat.(*ast.BindPat); ok {
 			gn := g.declare(bp.Name, false)
@@ -283,23 +284,27 @@ func (g *fnGen) loopBody(b *ast.Block) {
 func (g *fnGen) letStmt(s *ast.LetStmt) {
 	val := g.expr(s.Value)
 	if s.Else != nil {
+		// let PAT = opt else { ... }: the else branch runs when opt is None;
+		// otherwise PAT (irrefutable for the inner type) binds the value.
 		t := g.tmp(val)
-		if bp, ok := s.Pat.(*ast.BindPat); ok {
-			g.open("if rt.IsNone(%s) {", t)
-			g.elseExpr(s.Else)
-			g.close("}")
-			gn := g.declare(bp.Name, s.Var)
-			g.emit("var %s rt.Value = %s", gn, t)
-			g.emit("_ = %s", gn)
-			return
-		}
-		g.declarePatVars(s.Pat)
-		ok := g.fresh("_ok")
-		g.emit("%s := false", ok)
-		g.pattern(s.Pat, t, func() { g.emit("%s = true", ok) })
-		g.open("if !%s {", ok)
+		g.open("if rt.IsNone(%s) {", t)
 		g.elseExpr(s.Else)
 		g.close("}")
+		switch pt := s.Pat.(type) {
+		case *ast.BindPat:
+			gn := g.declare(pt.Name, s.Var)
+			g.emit("var %s rt.Value = %s", gn, t)
+			g.emit("_ = %s", gn)
+		case *ast.WildcardPat:
+		default:
+			g.declarePatVars(s.Pat)
+			ok := g.fresh("_ok")
+			g.emit("%s := false", ok)
+			g.pattern(s.Pat, t, func() { g.emit("%s = true", ok) })
+			g.open("if !%s {", ok)
+			g.elseExpr(s.Else)
+			g.close("}")
+		}
 		return
 	}
 	switch pt := s.Pat.(type) {

@@ -438,6 +438,9 @@ func (p *program) typeDescD(m *module, owner *ast.TypeDecl, tps map[string]int, 
 		tm := m
 		if t.Qualifier != "" {
 			path, ok := m.imports[t.Qualifier]
+			if path == "std/json" && t.Name == "Json" {
+				return "rt.TEnum(rt.JsonEnum)"
+			}
 			if !ok || p.mods[path] == nil {
 				return "rt.TAnyT"
 			}

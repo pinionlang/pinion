@@ -98,12 +98,16 @@ func M(recv Value, name string, names []string, args ...Value) Value {
 		return instantMethod(x, name, args)
 	case Duration:
 		return durationMethod(x, name, args)
+	case *Enum:
+		if x.V.T == JsonEnum {
+			return jsonMethod(x, name, args)
+		}
 	case *Func:
 		if name == "call" {
 			return Call(x, args...)
 		}
 	case NoneType:
-		if name == "map" {
+		if name == "map" || jsonLifted[name] {
 			return None
 		}
 	case *Handler:

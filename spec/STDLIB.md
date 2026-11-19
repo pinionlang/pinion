@@ -114,7 +114,17 @@
 ### `std/json` — 효과 없음
 `fn encode<T>(v: T) -> Str` (T: Encode)
 `fn decode<T>(s: Str) -> Result<T, JsonError>` (T: Decode)
+`fn parse(s: Str) -> Result<Json, JsonError>` — 엄격한 RFC 8259(뒤따르는 문자, `NaN`·`Infinity`, 끝 쉼표는 `syntax`, 중복 키는 `duplicate_key`, 범위를 넘는 수는 `out_of_range`)
 출력은 공백 없는 한 줄 JSON이다.
+
+동적 JSON 값(DESIGN 3.7.1). `import std/json` 뒤 `json.Json`으로 쓴다.
+```
+enum Json { Null, Bool(Bool), Int(Int), Float(Float), Str(Str), Arr(List<Json>), Obj(Map<Str, Json>) }
+```
+생성은 `json.Json.Int(3)`, `json.Json.Null`, 패턴은 이름만(`Int(n) => ...`). Frozen·Eq·Hash·Encode·Decode. `encode`는 태그 없는 일반 JSON으로 쓰고, `decode<T>`에서 `json.Json` 위치(필드 등)는 아무 JSON이나 그대로 받는다.
+수: `.`·`e`·`E`가 없고 Int 범위면 `Int`, 아니면 `Float`. `Obj`는 키 삽입 순서를 지킨다.
+메서드: `get(key: Str) -> Json?`(Obj가 아니거나 키가 없으면 `None`), `at(i: Int) -> Json?`, `as_str() -> Str?`, `as_int() -> Int?`(`Int`만), `as_float() -> Float?`(`Int`·`Float`), `as_bool() -> Bool?`, `as_list() -> List<Json>?`, `as_obj() -> Map<Str, Json>?`, `is_null() -> Bool`, `has(key: Str) -> Bool`(값이 `null`이어도 키가 있으면 true), `keys() -> List<Str>`(Obj가 아니면 빈 리스트), `kind() -> Str`(`"null"`, `"bool"`, `"int"`, `"float"`, `"str"`, `"arr"`, `"obj"`)
+`get`, `at`, `as_*`는 `Json?` 수신자에도 쓸 수 있다(`None`이면 `None`): `body.get("user").get("name").as_str()`
 
 ### `std/http` — 효과 `!net` (DESIGN 3.21)
 ```
@@ -125,8 +135,9 @@ class App
 `fn App() -> App`
 `App`: `get(path: Str, h: fn(Request) -> Response)`, `post`, `put`, `patch`, `delete`(같은 시그니처, 핸들러의 효과를 전달), `handle(req: Request) -> Response`(네트워크 없이 라우팅), `listen(port: Int) !net`(막고 서비스, 핸들러는 직렬 실행)
 `Request.json<T>() -> Result<T, JsonError>`, `Response.json<T>() -> Result<T, JsonError>` (T: Decode, 본문을 디코드)
+`Request.json_value() -> Result<json.Json, JsonError>`, `Response.json_value()` (`json.parse(body)`의 줄임)
 `fn request(method: Str, path: Str, body: Str = "", headers: Map<Str, Str> = {}) -> Request` — 테스트용. `path`의 `?` 뒤는 `query`로, 헤더 이름은 소문자로
-`fn json<T>(v: T, status: Int = 200) -> Response` (T: Encode, `content-type: application/json`)
+`fn json<T>(v: T, status: Int = 200) -> Response` (T: Encode — `data`, `List<data>`, `Map<Str, V>`, `json.Json` 등, `content-type: application/json`)
 `fn text(s: Str, status: Int = 200) -> Response` (`text/plain; charset=utf-8`), `fn empty(status: Int) -> Response`, `fn error(status: Int, msg: Str) -> Response` (`{"error": msg}` JSON)
 경로 패턴: `"/books/:id"` → `req.params.get_or("id", "")`. 경로 없음 404 `{"error":"not found"}`, 메서드 없음 405 `{"error":"method not allowed"}`.
 

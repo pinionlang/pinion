@@ -401,6 +401,14 @@ func (c *checker) methodCall(recv *Type, mem *ast.MemberExpr, e *ast.CallExpr, e
 		c.inferArgs(e.Args)
 		return errT
 	}
+	if r.K == KOption {
+		// Json? lifts Json's optional-returning methods: j.get("a").get("b").as_int()
+		if in := prune(r.Args[0]); in.K == KNamed && in.Info == c.std.jsonT {
+			if fi := in.Info.Methods[name]; fi != nil && prune(fi.Ret).K == KOption {
+				return c.callFn(fi, nil, e, exp)
+			}
+		}
+	}
 	tbl := c.std.methods[r.K]
 	fi := tbl[name]
 	if r.K == KOption && fi != nil {

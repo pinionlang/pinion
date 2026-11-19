@@ -24,6 +24,7 @@ type stdEnv struct {
 	statics    map[string]map[string]*FnInfo
 	prelude    map[string]*FnInfo
 	modules    map[string]*stdModule
+	jsonT      *TypeInfo // std/json Json; its T?-returning methods also accept a Json? receiver
 }
 
 var (
@@ -461,11 +462,40 @@ func buildStd() *stdEnv {
 	mod("time", "now() -> Instant !time", "now_unix() -> Int !time", "sleep(d: Duration) !time",
 		"fake(at: Int = 0) -> Handler")
 	mod("rand", "int(lo: Int, hi: Int) -> Int !rand", "float() -> Float !rand", "fake(seed: Int = 0) -> Handler")
-	j := mod("json", "encode<T>(v: T) -> Str", "decode<T>(s: Str) -> Result<T, JsonError>")
+	e.buildJSONValue()
+	j := mod("json", "encode<T>(v: T) -> Str", "decode<T>(s: Str) -> Result<T, JsonError>",
+		"parse(s: Str) -> Result<Json, JsonError>")
 	j.fns["encode"].Special = "encode"
 	j.fns["decode"].Special = "decode"
 	e.buildHTTP(dataT, addFields)
+	// Json is visible only as json.Json (it would shadow user types named Json).
+	delete(e.types, "Json")
+	delete(e.modules["http"].types, "Json")
 	return e
+}
+
+// buildJSONValue adds std/json's dynamic value enum (DESIGN 3.7.1).
+func (e *stdEnv) buildJSONValue() {
+	ti := &TypeInfo{Name: "Json", Kind: DEnum, Pub: true, Methods: map[string]*FnInfo{}}
+	e.types["Json"] = ti
+	e.jsonT = ti
+	self := named(ti)
+	ti.Variants = append(ti.Variants, &VariantInfo{Name: "Null", Owner: ti})
+	for _, v := range []struct {
+		name string
+		t    *Type
+	}{{"Bool", boolT}, {"Int", intT}, {"Float", floatT}, {"Str", strT},
+		{"Arr", &Type{K: KList, Args: []*Type{self}}}, {"Obj", &Type{K: KMap, Args: []*Type{strT, self}}}} {
+		ti.Variants = append(ti.Variants, &VariantInfo{Name: v.name, Owner: ti,
+			Fields: []*FieldInfo{{Name: "", Type: v.t, Pub: true}}})
+	}
+	for _, s := range []string{"get(key: Str) -> Json?", "at(i: Int) -> Json?", "as_str() -> Str?",
+		"as_int() -> Int?", "as_float() -> Float?", "as_bool() -> Bool?", "as_list() -> List<Json>?",
+		"as_obj() -> Map<Str, Json>?", "is_null() -> Bool", "has(key: Str) -> Bool", "keys() -> List<Str>",
+		"kind() -> Str"} {
+		f := e.parseSig(s, nil)
+		ti.Methods[f.Name] = f
+	}
 }
 
 // buildHTTP adds std/http (DESIGN 3.21). Its types are visible only through
@@ -486,6 +516,9 @@ func (e *stdEnv) buildHTTP(dataT func(string, ...string) *TypeInfo, addFields fu
 		f := e.parseSig("json<T>() -> Result<T, JsonError>", nil)
 		f.Special = "decode"
 		ti.Methods["json"] = f
+	}
+	for _, ti := range []*TypeInfo{req, resp} {
+		ti.Methods["json_value"] = e.parseSig("json_value() -> Result<Json, JsonError>", nil)
 	}
 	for _, m := range []string{"get", "post", "put", "patch", "delete"} {
 		app.Methods[m] = e.parseSig(m+"(path: Str, h: fn(Request) -> Response)", nil)
