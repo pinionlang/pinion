@@ -142,7 +142,19 @@ func (c *checker) callFn(fi *FnInfo, recv map[*TypeParamInfo]*Type, e *ast.CallE
 	}
 	ret := subst(fi.Ret, m)
 	c.preUnify(ret, exp)
-	poly := c.matchArgs(fi.Params, m, e.Args, e.Pos)
+	params := fi.Params
+	var hret *Type
+	if fi.Special == "route" {
+		// a handler returns Response, or Result<Response, Response> (Err sent as is)
+		// or Result<Response, Str> (Err(msg) -> 400 {"error": msg}), so that ? works.
+		hret = c.fresh()
+		params = []*ParamInfo{fi.Params[0], {Name: fi.Params[1].Name,
+			Type: &Type{K: KFn, Args: []*Type{named(c.std.httpReq)}, Ret: hret, Poly: true}}}
+	}
+	poly := c.matchArgs(params, m, e.Args, e.Pos)
+	if hret != nil {
+		c.checkHandlerRet(hret, e.Pos)
+	}
 	c.useEffects(fi.Eff|poly, e.Pos)
 	switch fi.Special {
 	case "encode":
@@ -155,6 +167,33 @@ func (c *checker) callFn(fi *FnInfo, recv map[*TypeParamInfo]*Type, e *ast.CallE
 		}
 	}
 	return ret
+}
+
+func (c *checker) checkHandlerRet(t *Type, pos token.Pos) {
+	resp := named(c.std.httpResp)
+	r := prune(t)
+	switch r.K {
+	case KVar, KNever:
+		c.unify(r, resp)
+		return
+	case KError:
+		return
+	case KResult:
+		ok := c.tryUnify(r.Args[0], resp)
+		if e := prune(r.Args[1]); e.K == KVar {
+			c.unify(e, resp)
+		} else if e.K != KError && !c.tryUnify(e, resp) && !c.tryUnify(e, strT) {
+			ok = false
+		}
+		if ok {
+			return
+		}
+	default:
+		if c.tryUnify(r, resp) {
+			return
+		}
+	}
+	c.errorf("E1201", pos, "a handler must return Response, Result<Response, Response> or Result<Response, Str>, got %s; convert errors with .map_err(...) before ?", typeString(r))
 }
 
 func (c *checker) preUnify(ret, exp *Type) {

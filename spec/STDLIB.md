@@ -1,5 +1,7 @@
 # Pinion v0 표준 라이브러리 API
 
+> AI용 요약: [REFERENCE-CARD.md](REFERENCE-CARD.md)(핵심 규칙 + 자주 쓰는 API + CRUD 예제, 한 문서).
+
 이 문서는 **검사기(시그니처)와 런타임(구현)이 함께 따르는 계약**이다. 의미 규칙은 [DESIGN.md](../docs/DESIGN.md)를 따른다.
 표기: `fn 이름(인자) -> 반환 !효과`. 효과가 없으면 생략한다. `이름: T = 기본값`은 생략할 수 있는 인자다(표준 라이브러리만). `T`, `U`, `K`, `V`는 타입 매개변수다.
 
@@ -125,6 +127,13 @@ enum Json { Null, Bool(Bool), Int(Int), Float(Float), Str(Str), Arr(List<Json>),
 수: `.`·`e`·`E`가 없고 Int 범위면 `Int`, 아니면 `Float`. `Obj`는 키 삽입 순서를 지킨다.
 메서드: `get(key: Str) -> Json?`(Obj가 아니거나 키가 없으면 `None`), `at(i: Int) -> Json?`, `as_str() -> Str?`, `as_int() -> Int?`(`Int`만), `as_float() -> Float?`(`Int`·`Float`), `as_bool() -> Bool?`, `as_list() -> List<Json>?`, `as_obj() -> Map<Str, Json>?`, `is_null() -> Bool`, `has(key: Str) -> Bool`(값이 `null`이어도 키가 있으면 true), `keys() -> List<Str>`(Obj가 아니면 빈 리스트), `kind() -> Str`(`"null"`, `"bool"`, `"int"`, `"float"`, `"str"`, `"arr"`, `"obj"`)
 `get`, `at`, `as_*`는 `Json?` 수신자에도 쓸 수 있다(`None`이면 `None`): `body.get("user").get("name").as_str()`
+검증 보조(오류는 `"필드: 문제"` 문장, 수신자가 Obj가 아니면 `"body must be a JSON object"`):
+`only(keys: List<Str>) -> Result<(), Str>`(목록 밖 키 → `"unknown field: k"`),
+`req_str(k: Str, min: Int = _, max: Int = _) -> Result<Str, Str>`(코드 포인트 길이), `opt_str(k, min, max) -> Result<Str?, Str>`,
+`req_int(k: Str, min: Int = _, max: Int = _) -> Result<Int, Str>`, `opt_int(...) -> Result<Int?, Str>`,
+`req_float(k: Str, min: Float = _, max: Float = _) -> Result<Float, Str>`(`Int`도 받음), `opt_float(...) -> Result<Float?, Str>`,
+`req_bool(k: Str) -> Result<Bool, Str>`, `opt_bool(k) -> Result<Bool?, Str>`, `str_list(k: Str) -> Result<List<Str>?, Str>`.
+`req_*`: 없으면 `"k: required"`. `opt_*`·`str_list`: 없으면 `Ok(None)`, `null`이나 다른 타입이면 `Err`(`"k: must be a string"`, `an integer`, `a number`, `a boolean`, `a list of strings`). 범위: `"k: must be >= 0"`, `"k: must not be empty"`(`min: 1`), `"k: must have at most 100 characters"`. `_` 기본값은 "제한 없음"이다.
 
 ### `std/http` — 효과 `!net` (DESIGN 3.21)
 ```
@@ -133,9 +142,11 @@ data Response { pub status: Int, pub body: Str, pub headers: Map<Str, Str> }
 class App
 ```
 `fn App() -> App`
-`App`: `get(path: Str, h: fn(Request) -> Response)`, `post`, `put`, `patch`, `delete`(같은 시그니처, 핸들러의 효과를 전달), `handle(req: Request) -> Response`(네트워크 없이 라우팅), `listen(port: Int) !net`(막고 서비스, 핸들러는 직렬 실행)
+`App`: `get(path: Str, h: fn(Request) -> Response)`, `post`, `put`, `patch`, `delete`(같은 시그니처, 핸들러의 효과를 전달), `handle(req: Request) -> Response`(네트워크 없이 라우팅), `listen(port: Int, host: Str = "127.0.0.1") !net`(막고 서비스, 기본은 루프백만, 핸들러는 직렬 실행)
+핸들러 반환 타입은 `Response`, `Result<Response, Response>`(Err 응답을 그대로 보냄), `Result<Response, Str>`(`Err(msg)` → 400 `{"error": msg}`) 중 하나다. 셋이 아니면 `E1201`.
 `Request.json<T>() -> Result<T, JsonError>`, `Response.json<T>() -> Result<T, JsonError>` (T: Decode, 본문을 디코드)
 `Request.json_value() -> Result<json.Json, JsonError>`, `Response.json_value()` (`json.parse(body)`의 줄임)
+`Request.json_obj() -> Result<json.Json, Str>` (파싱 실패 `"invalid json"`, Obj가 아니면 `"body must be a JSON object"`)
 `fn request(method: Str, path: Str, body: Str = "", headers: Map<Str, Str> = {}) -> Request` — 테스트용. `path`의 `?` 뒤는 `query`로, 헤더 이름은 소문자로
 `fn json<T>(v: T, status: Int = 200) -> Response` (T: Encode — `data`, `List<data>`, `Map<Str, V>`, `json.Json` 등, `content-type: application/json`)
 `fn text(s: Str, status: Int = 200) -> Response` (`text/plain; charset=utf-8`), `fn empty(status: Int) -> Response`, `fn error(status: Int, msg: Str) -> Response` (`{"error": msg}` JSON)

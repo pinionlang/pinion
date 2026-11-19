@@ -1,3 +1,5 @@
+> Short on context? `spec/REFERENCE-CARD.md` has the essential rules, std API and a CRUD example in one page.
+
 # Pinion core guide (for AI agents)
 
 Pinion (`.pi`) is a small, strict, object-oriented language compiled to Go. Write it like Kotlin/Rust/TypeScript, but follow these rules exactly. Full semantics: `docs/DESIGN.md`; std API: `spec/STDLIB.md`.
@@ -97,13 +99,23 @@ app.post("/books", req => {
   let b = req.json<NewBook>().ok() else { return http.error(400, "bad json") }   // type arg required
   http.json(b, status: 201)
 })
-app.listen(8080)                               // !net; blocks
+app.listen(8080)                               // !net; blocks; binds 127.0.0.1 (host: "0.0.0.0" for all)
 ```
 - Validating a free-form body (null vs missing, int vs float): `req.json_value()` gives a `json.Json` (`import std/json`). Lookups return `T?` and chain through `Json?`:
 ```pinion
 let body = req.json_value().ok() else { return http.error(400, "invalid json") }
 let title = body.get("title").as_str() else { return http.error(400, "title: string") }
 if body.has("age") && body.get("age").as_int().is_none() { return http.error(400, "age: integer") }
+```
+- Shorter: validation helpers return `Result<_, Str>` ("title: required"), and a handler may return `Result<Response, Str>` (Err(msg) -> 400 `{"error": msg}`) or `Result<Response, Response>`, so `?` works:
+```pinion
+app.post("/users", req => {
+  let b = req.json_obj()?                          // "invalid json" / "body must be a JSON object"
+  b.only(["name", "age"])?                         // "unknown field: x"
+  let name = b.req_str("name", min: 1, max: 50)?
+  let age = b.opt_int("age", min: 0)?              // Int?; null or wrong type is Err
+  Ok(http.json(User(name: name, age: age), status: 201))   // every exit is Ok(...)/Err(...)
+})
 ```
   `json.Json` = `Null | Bool | Int | Float | Str | Arr(List<Json>) | Obj(Map<Str, Json>)`; also `at(i)`, `as_float()` (Int too), `as_bool()`, `as_list()`, `as_obj()`, `is_null()`, `keys()`, `kind()`; build with `json.Json.Int(3)`, `json.parse(s)`. `http.json` accepts `Json`, `List<data>`, `Map<Str, V>`.
 - `req.method`, `req.path`, `req.params`, `req.query`, `req.headers` (lowercase names), `req.body`; `resp.status`, `resp.body`, `resp.headers`, `resp.json<T>()`.

@@ -21,6 +21,12 @@ var builtinParams = map[string][]string{
 	"insert":    {"i", "x"},
 	"pad_left":  {"n", "ch"},
 	"pad_right": {"n", "ch"},
+	"req_str":   {"k", "min", "max"},
+	"opt_str":   {"k", "min", "max"},
+	"req_int":   {"k", "min", "max"},
+	"opt_int":   {"k", "min", "max"},
+	"req_float": {"k", "min", "max"},
+	"opt_float": {"k", "min", "max"},
 }
 
 func normArgs(name string, names []string, args []Value) []Value {
@@ -40,7 +46,8 @@ func normArgs(name string, names []string, args []Value) []Value {
 	if !ok {
 		return args
 	}
-	return Reorder(name, ps, names, args, nil)
+	// omitted optional parameters arrive as nil (the checker rejects missing required ones)
+	return Reorder(name, ps, names, args, func(int) (Value, bool) { return nil, true })
 }
 
 // M calls method `name` on recv with args (names[i] is the name of named
@@ -49,7 +56,11 @@ func M(recv Value, name string, names []string, args ...Value) Value {
 	if o, ok := recv.(*Object); ok {
 		if m := o.T.Methods[name]; m != nil {
 			if len(names) > 0 {
-				args = Reorder(o.T.Name+"."+name, m.Params, names, args, nil)
+				var missing func(int) (Value, bool)
+				if strings.HasPrefix(o.T.Module, "std/") {
+					missing = func(int) (Value, bool) { return nil, true }
+				}
+				args = Reorder(o.T.Name+"."+name, m.Params, names, args, missing)
 			}
 			return m.Fn(o, args)
 		}

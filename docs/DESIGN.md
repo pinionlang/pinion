@@ -284,6 +284,8 @@ let title = body.get("title").as_str() else { return http.error(400, "title: str
 if body.has("done") && body.get("done").as_bool().is_none() { return http.error(400, "done: bool") }
 ```
 
+- **검증 보조 메서드**는 `Result<_, Str>`를 돌려주고, 오류는 사람이 읽는 `"필드: 문제"` 문장이다(`"title: required"`, `"year: must be >= 0"`, `"unknown field: x"`). `only(keys)`(알 수 없는 키 거부), `req_str`/`opt_str`(`min`·`max`는 코드 포인트 길이), `req_int`/`opt_int`·`req_float`/`opt_float`(`min`·`max`는 값, `float`는 `Int`도 받음), `req_bool`/`opt_bool`, `str_list`. `opt_*`·`str_list`는 키가 없으면 `Ok(None)`, `null`이나 다른 타입이면 `Err`다. 수신자가 Obj가 아니면 `"body must be a JSON object"`. `?`와 함께 쓰도록 만든 것이다(3.21의 Result 핸들러).
+
 ### 3.8 디버그 표현
 
 - JSON과 **별개의 계약**이다. 형식이 안정적이라고 보장하지 않는다.
@@ -617,6 +619,8 @@ pub fn total(o: Order) -> Int {
 
 - 효과 `!net`. `app.listen(port)`만 `!net`이다. 경로 등록(`app.get(path, h)` 등)은 표준 고차 함수처럼 **핸들러 클로저의 효과를 그대로 전달**한다(3.13 규칙 5). 그래서 핸들러가 `fs`를 쓰면 등록하는 함수(보통 `main`)가 `!fs`를 선언한다.
 - 경로 패턴은 `/`로 나눈 세그먼트이고 `:name`은 매개변수다(`req.params`). 맞는 경로가 여럿이면 **글자 그대로인 세그먼트가 많은 쪽**이 이기고, 같으면 먼저 등록한 쪽이다. 경로가 없으면 404 `{"error":"not found"}`, 경로는 있는데 메서드가 없으면 405 `{"error":"method not allowed"}`다.
+- 핸들러는 `Response`, `Result<Response, Response>`(Err 응답을 그대로 보냄), `Result<Response, Str>`(`Err(msg)`는 400 `{"error": msg}`) 중 하나를 돌려준다. 검사기는 핸들러 반환 타입을 추론한 뒤 이 셋 중 하나인지 확인한다(`E1201`). 그래서 핸들러 안에서 `let t = body.req_str("title")?`처럼 `?`를 쓴다. 자동 `Ok` 감싸기는 없다. `req.json_obj()`는 `Result<json.Json, Str>`이다(`"invalid json"`, `"body must be a JSON object"`).
+- `app.listen(port, host: "127.0.0.1")`: 기본은 루프백에만 묶는다. 바깥에 열려면 `host: "0.0.0.0"`을 명시한다.
 - 요청 검증은 `req.json_value()`(= `json.parse(req.body)`, 3.7.1)로 한다. `http.json(v)`는 Encode인 값이면 무엇이든 받는다(`data`, `List<data>`, `json.Json`).
 - `Request`와 `Response`는 `data`다(불변, `==`, JSON). 헤더 이름은 소문자로 바꾼다. 쿼리는 경로의 `?` 뒤를 풀어서 `req.query`에 둔다(같은 키는 처음 값). `req.json<T>()`·`resp.json<T>()`은 본문을 `json.decode<T>`로 읽는다(타입 인자를 쓴다).
 - **핸들러는 직렬로 실행한다**(프로세스 전체에 잠금 하나). 핸들러가 캡처한 `class` 상태와 `MutList`·`MutMap`을 두 요청이 동시에 만지지 않으므로 데이터 경쟁이 없다는 보장이 유지된다. 동시 처리는 6.3에서 다룬다.
@@ -868,6 +872,7 @@ v0에서 일관성을 위해 엄격하게 둔 규칙은 측정 결과를 보고 
 | 2026-11-20 | **이름을 Pith에서 Pinion으로 변경**. 확장자 `.pi`, 저장소 `pinionlang`, CLI `pinion` | 같은 목적("coding agent가 바로 생산적인 언어")의 GitHub 조직 `pithlang`과 도메인 `pithlang.org`가 이미 있었다. `.pi` 브랜딩을 유지하려고 Pi로 시작하는 이름 중 GitHub `pinionlang`, `pinionlang.dev`·`.org`가 비어 있고 같은 이름의 언어가 없는 Pinion을 택함 |
 | 2026-11-20 | v0 구현은 검사(정적)와 실행(동적 값 모델)을 분리 | 검사기와 백엔드를 병렬로 개발하고, 백엔드가 타입 정보에 묶이지 않게 하기 위해. 성능 비용은 벤치마크로 공개한다 |
 | 2026-11-20 | 토큰 절약 확장: `std/http`와 효과 `!net`(경로 등록은 핸들러 효과를 전달, 핸들러는 직렬 실행, 테스트는 `app.handle`), 컬렉션 보조 메서드(`count_by`, `group_by`, `take`, `max_by`, `get_or`, `inc`, `retain`, `Range.map` 등), 스크립트 모드(`fn main` 없는 진입 파일의 최상위 문이 암묵적 `main`, 효과 추론, 최상위 `let`/`var`는 지역 변수) | 같은 요구사항을 Python·Go·TS보다 적은 토큰으로 구현한다는 핵심 가설(0장)을 위해. 벤치마크 Pinion 토큰 합계 883 → 717. 안전 규칙은 유지한다: 이름 있는 함수의 효과 선언, 데이터 경쟁 없음(직렬 핸들러), 밀폐 테스트 |
+| 2026-11-20 | 검증 보조 메서드(`only`, `req_*`/`opt_*`, `str_list`, `Result<_, Str>`와 `"필드: 문제"` 문장), `req.json_obj()`, Result 핸들러(`Result<Response, Response>`는 그대로, `Result<Response, Str>`는 400), `app.listen`의 기본 호스트 `127.0.0.1`, AI용 한 장짜리 `spec/REFERENCE-CARD.md`(스니펫은 테스트로 컴파일·실행) | CRUD 벤치마크에서 Pinion 에이전트 비용의 대부분이 문서 읽기(GUIDE+STDLIB 약 6.4k 토큰)였고, 검증 코드가 `let ... else` 한 줄마다 오류 응답을 반복했다. 필드 검증을 `?` 한 단어로 줄이되 타입은 유지한다. 오류를 `Str`로 둔 것은 메시지를 그대로 400 응답에 싣기 위해서다. 바깥에 여는 것은 명시적으로만 한다 |
 | 2026-11-20 | 동적 JSON 값 `json.Json`(3.7.1): `json.parse`, `T?`를 돌려주는 조회 메서드(`get`, `at`, `as_*`, `has`, `keys`, `kind`; `get`·`at`·`as_*`는 `Json?` 수신자 허용), 값 그대로의 JSON 매핑, `req.json_value()`. `let _ = opt else { ... }`·`for _ in xs` 코드 생성 결함 수정 | CRUD 벤치마크에서 에이전트가 `decode<T>`로는 없음/`null`, 정수/소수를 구분할 수 없어 JSON 파서를 직접 썼다. Python·TS처럼 파싱된 값을 검증하는 짧은 경로를 준다. 정적 타입 디코드는 그대로 두고, 자유 형식이 필요한 자리만 `json.Json`을 쓴다 |
 | 2026-11-20 | 자료형 확장 (v0.5): `Never`, `Range`, `Set`·`MutSet`, `Dec`, `Bytes`, `Instant`·`Duration`, 표준 오류 타입, 문자열 보간 허용 타입. `Set`은 Eq+Hash 원소, 삽입 순서, 순서 무관 비교, 순서가 정해진 집합 연산, JSON 배열(중복은 디코드 에러). `Dec`는 `/` 금지(자릿수·반올림 명시), JSON 문자열. 순회 중 가변 컬렉션 변경은 결함 | 범용 언어에 필요한 자료형을 갖추되, 자료형마다 속성·순서·JSON을 함께 정해 규칙 사이의 빈틈을 만들지 않기 위해 |
 | 2026-11-20 | 4차 리뷰 반영 (v0.4.1): 밀폐 테스트와 `E3105`를 v0 규칙으로 유지. 밀폐 테스트의 보장 문구를 "표준 효과를 통한 외부 입력 통제"로 좁힘, 함수 `!fs`(사용 표시)와 테스트 `!fs`(실제 구현 선택)의 역할 차이 명시, `E3105`에 별칭 대입과 필드 객체의 필드 대입 포함, `pub`(외부 읽기)과 `mut`(내부 대입)의 역할 구분, 두 규칙의 재검토 지표 정의(8.1) | 규칙을 완화하지 않고 경계를 명시한 뒤, 실제 작성 비용으로 다시 판단하기 위해 |

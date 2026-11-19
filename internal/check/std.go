@@ -25,6 +25,8 @@ type stdEnv struct {
 	prelude    map[string]*FnInfo
 	modules    map[string]*stdModule
 	jsonT      *TypeInfo // std/json Json; its T?-returning methods also accept a Json? receiver
+	httpReq    *TypeInfo // std/http Request
+	httpResp   *TypeInfo // std/http Response
 }
 
 var (
@@ -492,7 +494,17 @@ func (e *stdEnv) buildJSONValue() {
 	for _, s := range []string{"get(key: Str) -> Json?", "at(i: Int) -> Json?", "as_str() -> Str?",
 		"as_int() -> Int?", "as_float() -> Float?", "as_bool() -> Bool?", "as_list() -> List<Json>?",
 		"as_obj() -> Map<Str, Json>?", "is_null() -> Bool", "has(key: Str) -> Bool", "keys() -> List<Str>",
-		"kind() -> Str"} {
+		"kind() -> Str",
+		// validation helpers (DESIGN 3.7.1): Err is a readable message "field: problem"
+		"only(keys: List<Str>) -> Result<(), Str>",
+		"req_str(k: Str, min: Int = _, max: Int = _) -> Result<Str, Str>",
+		"opt_str(k: Str, min: Int = _, max: Int = _) -> Result<Str?, Str>",
+		"req_int(k: Str, min: Int = _, max: Int = _) -> Result<Int, Str>",
+		"opt_int(k: Str, min: Int = _, max: Int = _) -> Result<Int?, Str>",
+		"req_float(k: Str, min: Float = _, max: Float = _) -> Result<Float, Str>",
+		"opt_float(k: Str, min: Float = _, max: Float = _) -> Result<Float?, Str>",
+		"req_bool(k: Str) -> Result<Bool, Str>", "opt_bool(k: Str) -> Result<Bool?, Str>",
+		"str_list(k: Str) -> Result<List<Str>?, Str>"} {
 		f := e.parseSig(s, nil)
 		ti.Methods[f.Name] = f
 	}
@@ -520,11 +532,18 @@ func (e *stdEnv) buildHTTP(dataT func(string, ...string) *TypeInfo, addFields fu
 	for _, ti := range []*TypeInfo{req, resp} {
 		ti.Methods["json_value"] = e.parseSig("json_value() -> Result<Json, JsonError>", nil)
 	}
+	e.httpReq, e.httpResp = req, resp
+	for _, ti := range []*TypeInfo{req} {
+		ti.Methods["json_obj"] = e.parseSig("json_obj() -> Result<Json, Str>", nil)
+	}
 	for _, m := range []string{"get", "post", "put", "patch", "delete"} {
-		app.Methods[m] = e.parseSig(m+"(path: Str, h: fn(Request) -> Response)", nil)
+		// the handler may also return Result<Response, Response | Str> (see callFn "route")
+		f := e.parseSig(m+"(path: Str, h: fn(Request) -> Response)", nil)
+		f.Special = "route"
+		app.Methods[m] = f
 	}
 	app.Methods["handle"] = e.parseSig("handle(req: Request) -> Response", nil)
-	app.Methods["listen"] = e.parseSig("listen(port: Int) !net", nil)
+	app.Methods["listen"] = e.parseSig(`listen(port: Int, host: Str = "127.0.0.1") !net`, nil)
 	m := &stdModule{name: "http", types: map[string]*TypeInfo{}, fns: e.table(nil, "App() -> App",
 		`request(method: Str, path: Str, body: Str = "", headers: Map<Str, Str> = {}) -> Request`,
 		"json<T>(v: T, status: Int = 200) -> Response", "text(s: Str, status: Int = 200) -> Response",

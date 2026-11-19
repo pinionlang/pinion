@@ -152,7 +152,20 @@ func (a *appState) dispatch(req *Object) Value {
 	}
 	r := &Object{T: HTTPRequestType, F: append([]Value(nil), req.F...)}
 	r.F[2] = bestParams
-	return Call(routes[best].h, r)
+	return handlerResult(Call(routes[best].h, r))
+}
+
+// handlerResult accepts Response or Result<Response, Response | Str>:
+// Ok(r) and Err(r) are sent as is, Err(msg) becomes 400 {"error": msg}.
+func handlerResult(v Value) Value {
+	res, ok := v.(*Result)
+	if !ok {
+		return v
+	}
+	if msg, isStr := res.V.(string); !res.IsOk && isStr {
+		return errorResponse(400, msg)
+	}
+	return res.V
 }
 
 func (a *appState) serveHTTP(w http.ResponseWriter, hr *http.Request) {
@@ -189,11 +202,11 @@ func (a *appState) serveHTTP(w http.ResponseWriter, hr *http.Request) {
 	io.WriteString(w, o.F[1].(string))
 }
 
-func (a *appState) listen(port int64) {
+func (a *appState) listen(port int64, host string) {
 	if !netReal {
 		Abort("R0109", "app.listen: the network is not available in hermetic tests; use app.handle(http.request(...))")
 	}
-	ln, err := net.Listen("tcp", fmt.Sprintf(":%d", port))
+	ln, err := net.Listen("tcp", net.JoinHostPort(host, fmt.Sprint(port)))
 	if err != nil {
 		flushStdout()
 		fmt.Fprintln(os.Stderr, "error: listen: "+err.Error())
@@ -233,8 +246,12 @@ func init() {
 	HTTPAppType.AddMethod("handle", []string{"req"}, func(self Value, a []Value) Value {
 		return appOf(self).dispatch(a[0].(*Object))
 	})
-	HTTPAppType.AddMethod("listen", []string{"port"}, func(self Value, a []Value) Value {
-		appOf(self).listen(a[0].(int64))
+	HTTPAppType.AddMethod("listen", []string{"port", "host"}, func(self Value, a []Value) Value {
+		host := "127.0.0.1" // loopback only unless the program asks for more
+		if len(a) > 1 && a[1] != nil {
+			host = a[1].(string)
+		}
+		appOf(self).listen(a[0].(int64), host)
 		return UnitV
 	})
 	opt := func(name string, defs ...Value) {

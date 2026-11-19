@@ -1,6 +1,7 @@
 package pinionrt
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -31,6 +32,16 @@ func init() {
 	for _, t := range []*TypeInfo{HTTPRequestType, HTTPResponseType} {
 		t.AddMethod("json_value", nil, func(self Value, _ []Value) Value { return JSONParse(GetField(self, "body")) })
 	}
+	HTTPRequestType.AddMethod("json_obj", nil, func(self Value, _ []Value) Value {
+		r := JSONParse(GetField(self, "body")).(*Result)
+		if !r.IsOk {
+			return Err("invalid json")
+		}
+		if r.V.(*Enum).V != jvObj {
+			return Err(notObject)
+		}
+		return r
+	})
 }
 
 // JSONParse is json.parse(s): strict RFC 8259 into a Json value.
@@ -168,6 +179,122 @@ func jsonMethod(e *Enum, name string, a []Value) Value {
 		return e.V == jvNull
 	case "kind":
 		return strings.ToLower(e.V.Name)
+	case "only":
+		if e.V != jvObj {
+			return Err(notObject)
+		}
+		allowed := map[string]bool{}
+		for _, k := range a[0].(*List).Items {
+			allowed[k.(string)] = true
+		}
+		for _, k := range e.F[0].(*Map).keys.items {
+			if !allowed[k.(string)] {
+				return Err("unknown field: " + k.(string))
+			}
+		}
+		return Ok(UnitV)
+	case "req_str", "opt_str", "req_int", "opt_int", "req_float", "opt_float", "req_bool", "opt_bool", "str_list":
+		return jsonField(e, name, a)
 	}
 	return noMethod("Json", name)
+}
+
+const notObject = "body must be a JSON object"
+
+func arg(a []Value, i int) Value {
+	if i < len(a) {
+		return a[i]
+	}
+	return nil
+}
+
+// jsonField implements the req_*/opt_*/str_list validation helpers.
+func jsonField(e *Enum, name string, a []Value) Value {
+	if e.V != jvObj {
+		return Err(notObject)
+	}
+	k := a[0].(string)
+	v, present := e.F[0].(*Map).Get(k)
+	opt := !strings.HasPrefix(name, "req_")
+	if !present {
+		if opt {
+			return Ok(None)
+		}
+		return Err(k + ": required")
+	}
+	wrap := func(x Value) Value {
+		if opt {
+			return Ok(Some(x))
+		}
+		return Ok(x)
+	}
+	fail := func(what string) Value { return Err(k + ": must be " + what) }
+	j := v.(*Enum)
+	lo, hi := arg(a, 1), arg(a, 2)
+	switch strings.TrimPrefix(strings.TrimPrefix(name, "req_"), "opt_") {
+	case "str":
+		if j.V != jvStr {
+			return fail("a string")
+		}
+		s := j.F[0].(string)
+		n := int64(len([]rune(s)))
+		if lo != nil && n < lo.(int64) {
+			if lo.(int64) == 1 {
+				return Err(k + ": must not be empty")
+			}
+			return Err(fmt.Sprintf("%s: must have at least %d characters", k, lo.(int64)))
+		}
+		if hi != nil && n > hi.(int64) {
+			return Err(fmt.Sprintf("%s: must have at most %d characters", k, hi.(int64)))
+		}
+		return wrap(s)
+	case "int":
+		if j.V != jvInt {
+			return fail("an integer")
+		}
+		n := j.F[0].(int64)
+		if lo != nil && n < lo.(int64) {
+			return Err(fmt.Sprintf("%s: must be >= %d", k, lo.(int64)))
+		}
+		if hi != nil && n > hi.(int64) {
+			return Err(fmt.Sprintf("%s: must be <= %d", k, hi.(int64)))
+		}
+		return wrap(n)
+	case "float":
+		var f float64
+		switch j.V {
+		case jvInt:
+			f = float64(j.F[0].(int64))
+		case jvFloat:
+			f = j.F[0].(float64)
+		default:
+			return fail("a number")
+		}
+		if lo != nil && f < lo.(float64) {
+			return Err(k + ": must be >= " + Display(lo))
+		}
+		if hi != nil && f > hi.(float64) {
+			return Err(k + ": must be <= " + Display(hi))
+		}
+		return wrap(f)
+	case "bool":
+		if j.V != jvBool {
+			return fail("a boolean")
+		}
+		return wrap(j.F[0])
+	}
+	// str_list
+	if j.V != jvArr {
+		return fail("a list of strings")
+	}
+	items := j.F[0].(*List).Items
+	out := make([]Value, len(items))
+	for i, x := range items {
+		xe := x.(*Enum)
+		if xe.V != jvStr {
+			return fail("a list of strings")
+		}
+		out[i] = xe.F[0]
+	}
+	return Ok(Some(NewList(out)))
 }

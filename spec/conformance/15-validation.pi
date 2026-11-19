@@ -1,0 +1,107 @@
+// 규칙: DESIGN.md 3.7.1(json.Json 검증 보조 메서드), 3.21(Result 핸들러, listen 기본 127.0.0.1)
+
+//# case: validation-handler-run
+//# expect: run
+//# stdout: 201 {"id":1,"title":"A","year":1999,"tags":["x"]}
+//# stdout: 400 {"error":"title: must not be empty"}
+//# stdout: 400 {"error":"unknown field: x"}
+//# stdout: 400 {"error":"body must be a JSON object"}
+//# stdout: 400 {"error":"invalid json"}
+//# stdout: 400 {"error":"year: must be >= 0"}
+//# stdout: 400 {"error":"year: must be an integer"}
+//# stdout: 400 {"error":"title: must be a string"}
+//# stdout: 400 {"error":"tags: must be a list of strings"}
+//# stdout: {"id":1,"title":"A","year":1999,"tags":["x"]}
+//# stdout: 204 {"error":"not found"}
+//# stdout: Err("f: must be <= 1.5") Ok(true) Err("no: required") Ok(2.0)
+import std/http
+import std/json
+
+data Book {
+  pub id: Int
+  pub title: Str
+  pub year: Int?
+  pub tags: List<Str>
+}
+
+let books = MutMap<Int, Book>()
+let app = http.App()
+app.post("/books", req => {
+  let b = req.json_obj()?
+  b.only(["title", "year", "tags"])?
+  let title = b.req_str("title", min: 1, max: 200)?
+  let year = b.opt_int("year", min: 0)?
+  let tags = b.str_list("tags")? ?? []
+  let book = Book(id: books.len() + 1, title: title.trim(), year: year, tags: tags)
+  books.set(book.id, book)
+  Ok(http.json(book, status: 201))
+})
+app.get("/books/:id", req => {
+  let id = Int.parse(req.params.get_or("id", "")).ok() else { return http.error(400, "bad id") }
+  let b = books.get(id) else { return http.error(404, "not found") }
+  http.json(b)
+})
+app.delete("/books/:id", req => {
+  let id = Int.parse(req.params.get_or("id", "")).map_err(e => http.error(400, "bad id"))?
+  let _ = books.remove(id) else { return Err(http.error(404, "not found")) }
+  Ok(http.empty(204))
+})
+for body in ["\{\"title\":\"A\",\"year\":1999,\"tags\":[\"x\"]\}", "\{\"title\":\"\"\}", "\{\"x\":1\}", "[1]", "nope", "\{\"title\":\"B\",\"year\":-1\}", "\{\"title\":\"B\",\"year\":null\}", "\{\"title\":3\}", "\{\"title\":\"C\",\"tags\":[1]\}"] {
+  let r = app.handle(http.request("POST", "/books", body: body))
+  print("{r.status} {r.body}")
+}
+print(app.handle(http.request("GET", "/books/1")).body)
+print("{app.handle(http.request("DELETE", "/books/1")).status} {app.handle(http.request("DELETE", "/books/1")).body}")
+let j = json.parse("\{\"f\":2,\"ok\":true\}").ok() ?? json.Json.Null
+print("{debug(j.req_float("f", max: 1.5))} {debug(j.opt_bool("ok"))} {debug(j.req_bool("no"))} {debug(j.opt_float("f", min: 0.5))}")
+
+//# case: validation-helpers-tests
+//# expect: tests
+//# test: fields -> passed
+import std/json
+
+test "fields" {
+  let j = json.parse("\{\"s\":\"ab\",\"n\":5,\"f\":1,\"b\":false,\"z\":null,\"xs\":[\"a\",\"b\"]\}").ok() ?? json.Json.Null
+  assert j.only(["s", "n", "f", "b", "z", "xs"]) == Ok(())
+  assert j.only(["s"]) == Err("unknown field: n")
+  assert json.Json.Int(1).only([]) == Err("body must be a JSON object")
+  assert j.req_str("s") == Ok("ab")
+  assert j.req_str("s", max: 1) == Err("s: must have at most 1 characters")
+  assert j.req_str("s", min: 3) == Err("s: must have at least 3 characters")
+  assert j.req_str("missing") == Err("missing: required")
+  assert j.opt_str("missing") == Ok(None)
+  assert j.opt_str("z") == Err("z: must be a string")
+  assert j.req_int("n", min: 1, max: 5) == Ok(5)
+  assert j.req_int("n", max: 4) == Err("n: must be <= 4")
+  assert j.req_int("f") == Ok(1)
+  assert j.req_int("s") == Err("s: must be an integer")
+  assert j.opt_int("n") == Ok(Some(5))
+  assert j.req_float("f") == Ok(1.0)
+  assert j.opt_float("s") == Err("s: must be a number")
+  assert j.req_bool("b") == Ok(false)
+  assert j.opt_bool("missing") == Ok(None)
+  assert j.str_list("xs") == Ok(Some(["a", "b"]))
+  assert j.str_list("missing") == Ok(None)
+  assert j.str_list("n") == Err("n: must be a list of strings")
+}
+
+//# case: handler-bad-return
+//# expect: error
+import std/http
+
+fn main() {
+  let app = http.App()
+  app.get("/", req => 3) //~ E1201
+}
+
+//# case: handler-result-wrong-error
+//# expect: error
+import std/http
+
+fn main() {
+  let app = http.App()
+  app.get("/", req => { //~ E1201
+    let n = Int.parse("x")?
+    Ok(http.text("{n}"))
+  })
+}
