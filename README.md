@@ -4,7 +4,7 @@
 
 AI가 작성하고 디버깅하기 쉬운 객체 지향 언어. 확장자는 `.pi`, Go로 컴파일된다.
 
-> 상태: **설계 단계 (v0)**. 컴파일러는 아직 없다.
+> 상태: **v0 구현**. 컴파일러(`go build -o bin/pinion ./cmd/pinion`), 표준 라이브러리(HTTP·JSON 포함), 테스트 도구가 동작한다. 벤치마크: [bench/ai/results/SUMMARY.md](bench/ai/results/SUMMARY.md)
 
 - [설계 문서](docs/DESIGN.md): 의미 규칙과 결정 기록
 - [구현 계획](docs/PLAN.md): v0 범위와 마일스톤

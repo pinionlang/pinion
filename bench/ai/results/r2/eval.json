@@ -1,0 +1,30 @@
+[
+  {
+    "lang": "pinion",
+    "run_cmd": "./server",
+    "source": {
+      "files": [
+        "rounds/r2/pinion/main.pi"
+      ],
+      "nonblank_lines": 139,
+      "bytes": 4720,
+      "tokens_cl100k": 1493
+    },
+    "build": {
+      "cmd": "../../../../../bin/pinion build -o server main.pi",
+      "ok": true,
+      "seconds": 1.62,
+      "output": ""
+    },
+    "tests": {
+      "passed": 74,
+      "total": 74,
+      "failures": []
+    },
+    "metrics": {
+      "tokens": 36976,
+      "tool_uses": 5,
+      "duration_ms": 59578
+    }
+  }
+]

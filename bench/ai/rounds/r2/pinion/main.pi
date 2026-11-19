@@ -1,0 +1,153 @@
+import std/http
+import std/json
+import std/env
+
+data Book {
+  pub id: Int
+  pub title: Str
+  pub author: Str
+  pub year: Int
+  pub tags: List<Str>
+}
+
+fn digits(s: Str) -> Bool {
+  if s.is_empty() { return false }
+  s.chars().all(c => "0123456789".contains(c))
+}
+
+fn parse_id(s: Str) -> Int? {
+  if !digits(s) { return None }
+  Int.parse(s).ok()
+}
+
+fn title_of(b: json.Json) -> Result<Str?, Str> {
+  let t = b.opt_str("title")? else { return Ok(None) }
+  let x = t.trim()
+  if x.is_empty() || x.len() > 200 { return Err("title: invalid") }
+  Ok(Some(x))
+}
+
+fn author_of(b: json.Json) -> Result<Str?, Str> {
+  let t = b.opt_str("author")? else { return Ok(None) }
+  let x = t.trim()
+  if x.is_empty() { return Err("author: invalid") }
+  Ok(Some(x))
+}
+
+fn app() -> http.App {
+  let books = MutMap<Int, Book>()
+  let next = MutList<Int>()
+  let keys = ["title", "author", "year", "tags"]
+  let a = http.App()
+
+  a.get("/books", req => {
+    let q = req.query
+    let lim_s = q.get("limit")
+    let off_s = q.get("offset")
+    var off = 0
+    var lim = -1
+    if lim_s.is_some() {
+      let s = lim_s ?? ""
+      if !digits(s) { return Err("limit: invalid") }
+      lim = Int.parse(s).ok() ?? 1000000000
+    }
+    if off_s.is_some() {
+      let s = off_s ?? ""
+      if !digits(s) { return Err("offset: invalid") }
+      off = Int.parse(s).ok() ?? 1000000000
+    }
+    let au = q.get("author")
+    let tg = q.get("tag")
+    let xs = books.values().filter(b => (au.is_none() || b.author == (au ?? "")) && (tg.is_none() || b.tags.contains(tg ?? "")))
+    let d = xs.drop(off)
+    Ok(http.json(if lim < 0 { d } else { d.take(lim) }))
+  })
+
+  a.post("/books", req => {
+    let b = req.json_obj()?
+    b.only(keys)?
+    let t = title_of(b)? else { return Err("title: required") }
+    let au = author_of(b)? else { return Err("author: required") }
+    let y = b.req_int("year", min: 0, max: 2100)?
+    let tags = b.str_list("tags")? ?? []
+    next.push(next.len() + 1)
+    let bk = Book(id: next.len(), title: t, author: au, year: y, tags: tags)
+    books.set(bk.id, bk)
+    Ok(http.json(bk, status: 201))
+  })
+
+  a.get("/books/:id", req => {
+    let id = parse_id(req.params.get_or("id", "")) else { return http.error(404, "not found") }
+    let bk = books.get(id) else { return http.error(404, "not found") }
+    http.json(bk)
+  })
+
+  a.put("/books/:id", req => {
+    let id = parse_id(req.params.get_or("id", "")) else { return Ok(http.error(404, "not found")) }
+    let old = books.get(id) else { return Ok(http.error(404, "not found")) }
+    let b = req.json_obj()?
+    b.only(keys)?
+    let t = title_of(b)? else { return Err("title: required") }
+    let au = author_of(b)? else { return Err("author: required") }
+    let y = b.req_int("year", min: 0, max: 2100)?
+    let tags = b.str_list("tags")? ?? []
+    let bk = old.with(title: t, author: au, year: y, tags: tags)
+    books.set(id, bk)
+    Ok(http.json(bk))
+  })
+
+  a.patch("/books/:id", req => {
+    let id = parse_id(req.params.get_or("id", "")) else { return Ok(http.error(404, "not found")) }
+    let old = books.get(id) else { return Ok(http.error(404, "not found")) }
+    let b = req.json_obj()?
+    b.only(keys)?
+    let t = title_of(b)? ?? old.title
+    let au = author_of(b)? ?? old.author
+    let y = b.opt_int("year", min: 0, max: 2100)? ?? old.year
+    let tags = b.str_list("tags")? ?? old.tags
+    let bk = old.with(title: t, author: au, year: y, tags: tags)
+    books.set(id, bk)
+    Ok(http.json(bk))
+  })
+
+  a.delete("/books/:id", req => {
+    let id = parse_id(req.params.get_or("id", "")) else { return http.error(404, "not found") }
+    let _ = books.remove(id) else { return http.error(404, "not found") }
+    http.empty(204)
+  })
+
+  a.get("/stats", req => {
+    let bs = books.values()
+    let by = MutMap<Str, json.Json>()
+    for (k, v) in bs.count_by(b => b.author) { by.set(k, json.Json.Int(v)) }
+    let tc = MutMap<Str, Int>()
+    for b in bs { for t in b.tags.distinct() { tc.inc(t) } }
+    let top = MutList<json.Json>()
+    let used = MutSet<Str>()
+    for i in 0..3 {
+      var best = ""
+      var bc = 0
+      for (k, v) in tc {
+        if !used.contains(k) && (v > bc || (v == bc && k < best)) {
+          best = k
+          bc = v
+        }
+      }
+      if bc > 0 {
+        let _ = used.add(best)
+        top.push(json.Json.Arr([json.Json.Str(best), json.Json.Int(bc)]))
+      }
+    }
+    let out = MutMap<Str, json.Json>()
+    out.set("count", json.Json.Int(bs.len()))
+    out.set("by_author", json.Json.Obj(by.freeze()))
+    out.set("top_tags", json.Json.Arr(top.freeze()))
+    http.json(json.Json.Obj(out.freeze()))
+  })
+  a
+}
+
+fn main() !net !env {
+  let p = Int.parse(env.get("PORT") ?? "8080").ok() ?? 8080
+  app().listen(p)
+}

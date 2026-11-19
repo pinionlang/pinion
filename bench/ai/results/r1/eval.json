@@ -1,0 +1,108 @@
+[
+  {
+    "lang": "go",
+    "run_cmd": "./server",
+    "source": {
+      "files": [
+        "rounds/r1/go/main.go"
+      ],
+      "nonblank_lines": 312,
+      "bytes": 6514,
+      "tokens_cl100k": 2137
+    },
+    "build": {
+      "cmd": "go build -o server .",
+      "ok": true,
+      "seconds": 0.54,
+      "output": ""
+    },
+    "tests": {
+      "passed": 74,
+      "total": 74,
+      "failures": []
+    },
+    "metrics": {
+      "tokens": 29296,
+      "tool_uses": 4,
+      "duration_ms": 53484
+    }
+  },
+  {
+    "lang": "pinion",
+    "run_cmd": "./server",
+    "source": {
+      "files": [
+        "rounds/r1/pinion/main.pi"
+      ],
+      "nonblank_lines": 96,
+      "bytes": 3738,
+      "tokens_cl100k": 1210
+    },
+    "build": {
+      "cmd": "../../../../../bin/pinion build -o server main.pi",
+      "ok": true,
+      "seconds": 0.05,
+      "output": ""
+    },
+    "tests": {
+      "passed": 74,
+      "total": 74,
+      "failures": []
+    },
+    "metrics": {
+      "tokens": 36920,
+      "tool_uses": 5,
+      "duration_ms": 58912
+    }
+  },
+  {
+    "lang": "python",
+    "run_cmd": "python3 server.py",
+    "source": {
+      "files": [
+        "rounds/r1/python/server.py"
+      ],
+      "nonblank_lines": 124,
+      "bytes": 4733,
+      "tokens_cl100k": 1220
+    },
+    "tests": {
+      "passed": 74,
+      "total": 74,
+      "failures": []
+    },
+    "metrics": {
+      "tokens": 28672,
+      "tool_uses": 4,
+      "duration_ms": 46536
+    }
+  },
+  {
+    "lang": "typescript",
+    "run_cmd": "node out/server.js",
+    "source": {
+      "files": [
+        "rounds/r1/typescript/server.ts"
+      ],
+      "nonblank_lines": 99,
+      "bytes": 4683,
+      "tokens_cl100k": 1442
+    },
+    "build": {
+      "cmd": "npx tsc --target es2022 --module commonjs --lib es2022,dom --outDir out server.ts",
+      "ok": true,
+      "seconds": 1.03,
+      "output": ""
+    },
+    "tests": {
+      "passed": 74,
+      "total": 74,
+      "failures": []
+    },
+    "metrics": {
+      "tokens": 27400,
+      "tool_uses": 3,
+      "duration_ms": 34271
+    }
+  }
+]

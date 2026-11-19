@@ -1,0 +1,127 @@
+import std/http
+import std/json
+import std/env
+
+data Book {
+  pub id: Int
+  pub title: Str
+  pub author: Str
+  pub year: Int
+  pub tags: List<Str>
+}
+
+fn chk_title(s: Str) -> Result<Str, Str> {
+  let t = s.trim()
+  if t.is_empty() || t.chars().len() > 200 { return Err("title: invalid") }
+  Ok(t)
+}
+
+fn chk_author(s: Str) -> Result<Str, Str> {
+  let t = s.trim()
+  if t.is_empty() { return Err("author: invalid") }
+  Ok(t)
+}
+
+fn digits(s: Str) -> Bool {
+  !s.is_empty() && s.chars().all(c => "0123456789".contains(c))
+}
+
+fn qint(q: Map<Str, Str>, k: Str) -> Result<Int?, Str> {
+  let v = q.get(k) else { return Ok(None) }
+  if !digits(v) { return Err("{k}: invalid") }
+  Ok(Some(Int.parse(v).map_err(e => "{k}: invalid")?))
+}
+
+fn full(b: json.Json, id: Int) -> Result<Book, Str> {
+  b.only(["title", "author", "year", "tags"])?
+  let title = chk_title(b.req_str("title")?)?
+  let author = chk_author(b.req_str("author")?)?
+  let year = b.req_int("year", min: 0, max: 2100)?
+  let tags = b.str_list("tags")? ?? []
+  Ok(Book(id: id, title: title, author: author, year: year, tags: tags))
+}
+
+fn pid(req: http.Request) -> Int {
+  let s = req.params.get_or("id", "")
+  if !digits(s) { return 0 }
+  Int.parse(s).ok() ?? 0
+}
+
+fn app() -> http.App {
+  let books = MutMap<Int, Book>()
+  let next = MutList<Int>()
+  let a = http.App()
+  a.get("/books", req => {
+    let off = qint(req.query, "offset")? ?? 0
+    let lim = qint(req.query, "limit")?
+    let au = req.query.get("author")
+    let tg = req.query.get("tag")
+    let xs = books.values().filter(b => (au.map(x => x == b.author) ?? true) && (tg.map(x => b.tags.contains(x)) ?? true)).drop(off)
+    let ys = lim.map(n => xs.take(n)) ?? xs
+    Ok(http.json(ys))
+  })
+  a.post("/books", req => {
+    let b = req.json_obj()?
+    let bk = full(b, next.len() + 1)?
+    next.push(bk.id)
+    books.set(bk.id, bk)
+    Ok(http.json(bk, status: 201))
+  })
+  a.get("/books/:id", req => {
+    let bk = books.get(pid(req)) else { return http.error(404, "not found") }
+    http.json(bk)
+  })
+  a.put("/books/:id", req => {
+    let old = books.get(pid(req)) else { return Ok(http.error(404, "not found")) }
+    let b = req.json_obj()?
+    let bk = full(b, old.id)?
+    books.set(bk.id, bk)
+    Ok(http.json(bk))
+  })
+  a.patch("/books/:id", req => {
+    let t = books.get(pid(req)) else { return Ok(http.error(404, "not found")) }
+    let b = req.json_obj()?
+    b.only(["title", "author", "year", "tags"])?
+    let ti = b.opt_str("title")?
+    let au = b.opt_str("author")?
+    let title = if ti.is_some() { chk_title(ti ?? "")? } else { t.title }
+    let author = if au.is_some() { chk_author(au ?? "")? } else { t.author }
+    let year = b.opt_int("year", min: 0, max: 2100)? ?? t.year
+    let tags = b.str_list("tags")? ?? t.tags
+    let u = t.with(title: title, author: author, year: year, tags: tags)
+    books.set(u.id, u)
+    Ok(http.json(u))
+  })
+  a.delete("/books/:id", req => {
+    let _ = books.remove(pid(req)) else { return http.error(404, "not found") }
+    http.empty(204)
+  })
+  a.get("/stats", req => {
+    let bs = books.values()
+    let by = bs.count_by(b => b.author)
+    let tc = MutMap<Str, Int>()
+    for b in bs {
+      for t in b.tags.distinct() { tc.inc(t) }
+    }
+    let top = tc.entries().sort_by(e => {
+      let (k, v) = e
+      (0 - v, k)
+    }).take(3).map(e => {
+      let (k, v) = e
+      [json.Json.Str(k), json.Json.Int(v)]
+    })
+    http.json(StatsOut(count: bs.len(), by_author: by, top_tags: top))
+  })
+  a
+}
+
+data StatsOut {
+  pub count: Int
+  pub by_author: Map<Str, Int>
+  pub top_tags: List<List<json.Json>>
+}
+
+fn main() !net !env {
+  let p = Int.parse(env.get("PORT") ?? "8080").ok() ?? 8080
+  app().listen(p)
+}

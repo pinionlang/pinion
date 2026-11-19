@@ -164,15 +164,27 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	defer in.Close()
-	o, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o755)
+	// Write a new file and rename it over dst. Truncating an existing executable
+	// in place makes macOS kill the new binary (stale code-signature cache).
+	o, err := os.CreateTemp(filepath.Dir(dst), ".pinion-build-*")
 	if err != nil {
 		return err
 	}
+	tmp := o.Name()
 	if _, err := io.Copy(o, in); err != nil {
 		o.Close()
+		os.Remove(tmp)
 		return err
 	}
-	return o.Close()
+	if err := o.Close(); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	if err := os.Chmod(tmp, 0o755); err != nil {
+		os.Remove(tmp)
+		return err
+	}
+	return os.Rename(tmp, dst)
 }
 
 func cmdTest(args []string) int {
