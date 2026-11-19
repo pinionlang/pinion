@@ -13,7 +13,7 @@
     "build": {
       "cmd": "go build -o server .",
       "ok": true,
-      "seconds": 0.72,
+      "seconds": 0.81,
       "output": ""
     },
     "tests": {
@@ -34,14 +34,14 @@
       "files": [
         "/Users/tj.k/orca/projects/AILang/bench/ai/runs/pinion/main.pi"
       ],
-      "nonblank_lines": 388,
-      "bytes": 12010,
-      "tokens_cl100k": 3724
+      "nonblank_lines": 161,
+      "bytes": 5150,
+      "tokens_cl100k": 1578
     },
     "build": {
       "cmd": "../../../../bin/pinion build -o server main.pi",
       "ok": true,
-      "seconds": 0.04,
+      "seconds": 0.05,
       "output": ""
     },
     "tests": {
@@ -50,9 +50,9 @@
       "failures": []
     },
     "metrics": {
-      "tokens": 53094,
-      "tool_uses": 13,
-      "duration_ms": 137676
+      "tokens": 41197,
+      "tool_uses": 8,
+      "duration_ms": 70983
     }
   },
   {
@@ -91,7 +91,7 @@
     "build": {
       "cmd": "npx tsc --target es2022 --module commonjs --lib es2022,dom --outDir out server.ts",
       "ok": true,
-      "seconds": 1.08,
+      "seconds": 1.21,
       "output": ""
     },
     "tests": {
