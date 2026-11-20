@@ -1,0 +1,14 @@
+{
+  "started_at": "2026-11-20T09:50:38+0900",
+  "compiler_commit": "3eeec33",
+  "compiler_dirty": false,
+  "task": "T2-persist",
+  "baseline": "bench/ai/change/baseline/pinion",
+  "doc_hashes": {
+    "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+    "spec/GUIDE.md": "e9b24066e108",
+    "spec/STDLIB.md": "e9c2404c2c27",
+    "bench/ai/crud/SPEC.md": "95c26e8998f6",
+    "bench/ai/change/T2-persist/CHANGE.md": "1463cfd2ce58"
+  }
+}

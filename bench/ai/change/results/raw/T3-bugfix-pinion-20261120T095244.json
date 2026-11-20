@@ -1,0 +1,68 @@
+{
+  "eval_id": "T3-bugfix-pinion-20261120T095244",
+  "evaluated_at": "2026-11-20T09:52:44+0900",
+  "compiler_commit": "3eeec33",
+  "compiler_dirty": false,
+  "hashes": {
+    "bench/ai/crud/SPEC.md": "95c26e8998f6",
+    "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+    "spec/GUIDE.md": "e9b24066e108",
+    "spec/STDLIB.md": "e9c2404c2c27",
+    "bench/ai/change/PROMPT.md": "28ff79729798",
+    "bench/ai/change/T1-isbn/CHANGE.md": "028e3cff99db",
+    "bench/ai/change/T2-persist/CHANGE.md": "1463cfd2ce58",
+    "bench/ai/change/T3-bugfix/CHANGE.md": "c7c1b646b4de",
+    "bench/ai/change/T4-status/CHANGE.md": "900ad21c1371",
+    "bench/ai/change/T5-envelope/CHANGE.md": "d322bfc25078"
+  },
+  "tools": {
+    "python": "3.13.5",
+    "go": "go version go1.27.4 darwin/arm64",
+    "node": "v22.17.0",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O"
+  },
+  "task": "T3-bugfix",
+  "lang": "pinion",
+  "run_dir": "/Users/tj.k/orca/projects/AILang/bench/ai/change/runs/T3-bugfix/pinion",
+  "meta": {
+    "started_at": "2026-11-20T09:50:39+0900",
+    "compiler_commit": "3eeec33",
+    "compiler_dirty": false,
+    "task": "T3-bugfix",
+    "baseline": "bench/ai/change/T3-bugfix/pinion",
+    "doc_hashes": {
+      "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+      "spec/GUIDE.md": "e9b24066e108",
+      "spec/STDLIB.md": "e9c2404c2c27",
+      "bench/ai/crud/SPEC.md": "95c26e8998f6",
+      "bench/ai/change/T3-bugfix/CHANGE.md": "c7c1b646b4de"
+    }
+  },
+  "metrics": {
+    "tokens": 35031,
+    "tool_uses": 4,
+    "duration_ms": 35825
+  },
+  "diff": {
+    "start": "/Users/tj.k/orca/projects/AILang/bench/ai/change/T3-bugfix/pinion",
+    "files_changed": 1,
+    "lines_added": 6,
+    "lines_removed": 10,
+    "diff_tokens_cl100k": 434,
+    "changed_tokens_cl100k": 156,
+    "unified_diff": "--- a/main.pi\n+++ b/main.pi\n@@ -82,8 +82,8 @@\n   }\n   let top = tag_count.entries().sort_by(e => {\n     let (k, v) = e\n-    (v, k)\n-  }).reverse().take(3).map(e => {\n+    (0 - v, k)\n+  }).take(3).map(e => {\n     let (k, v) = e\n     json.Json.Arr([json.Json.Str(k), json.Json.Int(v)])\n   })\n@@ -103,9 +103,9 @@\n     let author = req.query.get(\"author\")\n     let tag = req.query.get(\"tag\")\n     let xs = st.sorted()\n-      .drop(offset)\n       .filter(b => author.map(x => b.author == x) ?? true)\n       .filter(b => tag.map(x => b.tags.contains(x)) ?? true)\n+      .drop(offset)\n     Ok(http.json(limit.map(n => xs.take(n)) ?? xs))\n   })\n   a.post(\"/books\", req => {\n@@ -125,13 +125,9 @@\n   a.patch(\"/books/:id\", req => {\n     let old = st.find(path_id(req)) else { return Ok(http.error(404, \"not found\")) }\n     let body = req.json_obj()?\n-    body.only([\"title\", \"author\", \"year\", \"tags\"])?\n-    for k in [\"title\", \"author\", \"year\", \"tags\"] {\n-      let v = body.get(k) else { continue }\n-      let cur = st.find(old.id) ?? old\n-      st.save(merge(fields(json.Json.Obj({k: v}))?, cur))\n-    }\n-    Ok(http.json(st.find(old.id) ?? old))\n+    let b = merge(fields(body)?, old)\n+    st.save(b)\n+    Ok(http.json(b))\n   })\n   a.delete(\"/books/:id\", req => {\n     if !st.delete(path_id(req) ?? 0) { return http.error(404, \"not found\") }\n"
+  },
+  "run_cmd": "./server",
+  "build": {
+    "cmd": "\"${PINION:-$(git rev-parse --show-toplevel)/bin/pinion}\" build -o server main.pi",
+    "ok": true,
+    "seconds": 0.08,
+    "output": ""
+  },
+  "test_sha256": "c249c6f801ec",
+  "tests": {
+    "passed": 92,
+    "total": 92,
+    "failures": []
+  }
+}

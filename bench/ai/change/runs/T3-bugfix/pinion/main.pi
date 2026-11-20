@@ -1,0 +1,142 @@
+import std/http
+import std/json
+import std/env
+
+data Book {
+  pub id: Int
+  pub title: Str
+  pub author: Str
+  pub year: Int
+  pub tags: List<Str>
+}
+
+data Fields {
+  pub title: Str?
+  pub author: Str?
+  pub year: Int?
+  pub tags: List<Str>?
+}
+
+class Store {
+  pub books: MutMap<Int, Book> = MutMap<Int, Book>()
+  mut next_id: Int = 1
+  pub mut fn insert(b: Book) -> Book {
+    let n = b.with(id: self.next_id)
+    self.next_id += 1
+    self.books.set(n.id, n)
+    n
+  }
+  pub mut fn save(b: Book) { self.books.set(b.id, b) }
+  pub mut fn delete(id: Int) -> Bool { self.books.remove(id).is_some() }
+  pub fn find(id: Int?) -> Book? { self.books.get(id ?? 0) }
+  pub fn sorted() -> List<Book> { self.books.values().sort_by(b => b.id) }
+}
+
+fn digits(s: Str) -> Bool {
+  !s.is_empty() && s.chars().all(c => "0123456789".contains(c))
+}
+
+fn path_id(req: http.Request) -> Int? {
+  let s = req.params.get_or("id", "")
+  if !digits(s) { return None }
+  Int.parse(s).ok()
+}
+
+fn count_param(req: http.Request, k: Str) -> Result<Int?, Str> {
+  let s = req.query.get(k) else { return Ok(None) }
+  if !digits(s) { return Err("{k}: must be a non-negative integer") }
+  Ok(Some(Int.parse(s).map_err(e => "{k}: must be a non-negative integer")?))
+}
+
+fn trimmed(b: json.Json, k: Str) -> Result<Str?, Str> {
+  let s = b.opt_str(k)? else { return Ok(None) }
+  let t = s.trim()
+  if t.is_empty() { return Err("{k}: must not be empty") }
+  Ok(Some(t))
+}
+
+fn fields(b: json.Json) -> Result<Fields, Str> {
+  b.only(["title", "author", "year", "tags"])?
+  let title = trimmed(b, "title")?
+  if title.map(t => t.chars().len() > 200) ?? false { return Err("title: at most 200 characters") }
+  Ok(Fields(title: title, author: trimmed(b, "author")?, year: b.opt_int("year", min: 0, max: 2100)?, tags: b.str_list("tags")?))
+}
+
+fn complete(f: Fields, id: Int) -> Result<Book, Str> {
+  let title = f.title else { return Err("title: required") }
+  let author = f.author else { return Err("author: required") }
+  let year = f.year else { return Err("year: required") }
+  Ok(Book(id: id, title: title, author: author, year: year, tags: f.tags ?? []))
+}
+
+fn merge(f: Fields, b: Book) -> Book {
+  b.with(title: f.title ?? b.title, author: f.author ?? b.author, year: f.year ?? b.year, tags: f.tags ?? b.tags)
+}
+
+fn stats(books: List<Book>) -> json.Json {
+  let by_author = MutMap<Str, Int>()
+  let tag_count = MutMap<Str, Int>()
+  for b in books {
+    by_author.inc(b.author)
+    for t in b.tags.distinct() { tag_count.inc(t) }
+  }
+  let top = tag_count.entries().sort_by(e => {
+    let (k, v) = e
+    (0 - v, k)
+  }).take(3).map(e => {
+    let (k, v) = e
+    json.Json.Arr([json.Json.Str(k), json.Json.Int(v)])
+  })
+  json.Json.Obj({
+    "count": json.Json.Int(books.len()),
+    "by_author": json.Json.Obj(by_author.freeze().map_values(v => json.Json.Int(v))),
+    "top_tags": json.Json.Arr(top),
+  })
+}
+
+fn app() -> http.App {
+  let st = Store()
+  let a = http.App()
+  a.get("/books", req => {
+    let offset = count_param(req, "offset")? ?? 0
+    let limit = count_param(req, "limit")?
+    let author = req.query.get("author")
+    let tag = req.query.get("tag")
+    let xs = st.sorted()
+      .filter(b => author.map(x => b.author == x) ?? true)
+      .filter(b => tag.map(x => b.tags.contains(x)) ?? true)
+      .drop(offset)
+    Ok(http.json(limit.map(n => xs.take(n)) ?? xs))
+  })
+  a.post("/books", req => {
+    let b = complete(fields(req.json_obj()?)?, 0)?
+    Ok(http.json(st.insert(b), status: 201))
+  })
+  a.get("/books/:id", req => {
+    let b = st.find(path_id(req)) else { return http.error(404, "not found") }
+    http.json(b)
+  })
+  a.put("/books/:id", req => {
+    let old = st.find(path_id(req)) else { return Ok(http.error(404, "not found")) }
+    let b = complete(fields(req.json_obj()?)?, old.id)?
+    st.save(b)
+    Ok(http.json(b))
+  })
+  a.patch("/books/:id", req => {
+    let old = st.find(path_id(req)) else { return Ok(http.error(404, "not found")) }
+    let body = req.json_obj()?
+    let b = merge(fields(body)?, old)
+    st.save(b)
+    Ok(http.json(b))
+  })
+  a.delete("/books/:id", req => {
+    if !st.delete(path_id(req) ?? 0) { return http.error(404, "not found") }
+    http.empty(204)
+  })
+  a.get("/stats", req => http.json(stats(st.sorted())))
+  a
+}
+
+fn main() !net !env {
+  app().listen(Int.parse(env.get("PORT") ?? "8080").unwrap_or(8080))
+}

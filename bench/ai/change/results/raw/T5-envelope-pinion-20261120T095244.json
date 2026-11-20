@@ -1,0 +1,68 @@
+{
+  "eval_id": "T5-envelope-pinion-20261120T095244",
+  "evaluated_at": "2026-11-20T09:52:44+0900",
+  "compiler_commit": "3eeec33",
+  "compiler_dirty": false,
+  "hashes": {
+    "bench/ai/crud/SPEC.md": "95c26e8998f6",
+    "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+    "spec/GUIDE.md": "e9b24066e108",
+    "spec/STDLIB.md": "e9c2404c2c27",
+    "bench/ai/change/PROMPT.md": "28ff79729798",
+    "bench/ai/change/T1-isbn/CHANGE.md": "028e3cff99db",
+    "bench/ai/change/T2-persist/CHANGE.md": "1463cfd2ce58",
+    "bench/ai/change/T3-bugfix/CHANGE.md": "c7c1b646b4de",
+    "bench/ai/change/T4-status/CHANGE.md": "900ad21c1371",
+    "bench/ai/change/T5-envelope/CHANGE.md": "d322bfc25078"
+  },
+  "tools": {
+    "python": "3.13.5",
+    "go": "go version go1.27.4 darwin/arm64",
+    "node": "v22.17.0",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O"
+  },
+  "task": "T5-envelope",
+  "lang": "pinion",
+  "run_dir": "/Users/tj.k/orca/projects/AILang/bench/ai/change/runs/T5-envelope/pinion",
+  "meta": {
+    "started_at": "2026-11-20T09:50:41+0900",
+    "compiler_commit": "3eeec33",
+    "compiler_dirty": false,
+    "task": "T5-envelope",
+    "baseline": "bench/ai/change/baseline/pinion",
+    "doc_hashes": {
+      "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+      "spec/GUIDE.md": "e9b24066e108",
+      "spec/STDLIB.md": "e9c2404c2c27",
+      "bench/ai/crud/SPEC.md": "95c26e8998f6",
+      "bench/ai/change/T5-envelope/CHANGE.md": "d322bfc25078"
+    }
+  },
+  "metrics": {
+    "tokens": 31527,
+    "tool_uses": 6,
+    "duration_ms": 47739
+  },
+  "diff": {
+    "start": "/Users/tj.k/orca/projects/AILang/bench/ai/change/baseline/pinion",
+    "files_changed": 1,
+    "lines_added": 9,
+    "lines_removed": 2,
+    "diff_tokens_cl100k": 234,
+    "changed_tokens_cl100k": 101,
+    "unified_diff": "--- a/main.pi\n+++ b/main.pi\n@@ -8,6 +8,13 @@\n   pub author: Str\n   pub year: Int\n   pub tags: List<Str>\n+}\n+\n+data Page {\n+  pub items: List<Book>\n+  pub total: Int\n+  pub offset: Int\n+  pub limit: json.Json\n }\n \n data Fields {\n@@ -105,8 +112,8 @@\n     let xs = st.sorted()\n       .filter(b => author.map(x => b.author == x) ?? true)\n       .filter(b => tag.map(x => b.tags.contains(x)) ?? true)\n-      .drop(offset)\n-    Ok(http.json(limit.map(n => xs.take(n)) ?? xs))\n+    let rest = xs.drop(offset)\n+    Ok(http.json(Page(items: limit.map(n => rest.take(n)) ?? rest, total: xs.len(), offset: offset, limit: limit.map(n => json.Json.Int(n)) ?? json.Json.Null)))\n   })\n   a.post(\"/books\", req => {\n     let b = complete(fields(req.json_obj()?)?, 0)?\n"
+  },
+  "run_cmd": "./server",
+  "build": {
+    "cmd": "\"${PINION:-$(git rev-parse --show-toplevel)/bin/pinion}\" build -o server main.pi",
+    "ok": true,
+    "seconds": 0.07,
+    "output": ""
+  },
+  "test_sha256": "62a12720cabc",
+  "tests": {
+    "passed": 90,
+    "total": 90,
+    "failures": []
+  }
+}

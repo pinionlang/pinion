@@ -1,0 +1,68 @@
+{
+  "eval_id": "T4-status-pinion-20261120T095244",
+  "evaluated_at": "2026-11-20T09:52:44+0900",
+  "compiler_commit": "3eeec33",
+  "compiler_dirty": false,
+  "hashes": {
+    "bench/ai/crud/SPEC.md": "95c26e8998f6",
+    "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+    "spec/GUIDE.md": "e9b24066e108",
+    "spec/STDLIB.md": "e9c2404c2c27",
+    "bench/ai/change/PROMPT.md": "28ff79729798",
+    "bench/ai/change/T1-isbn/CHANGE.md": "028e3cff99db",
+    "bench/ai/change/T2-persist/CHANGE.md": "1463cfd2ce58",
+    "bench/ai/change/T3-bugfix/CHANGE.md": "c7c1b646b4de",
+    "bench/ai/change/T4-status/CHANGE.md": "900ad21c1371",
+    "bench/ai/change/T5-envelope/CHANGE.md": "d322bfc25078"
+  },
+  "tools": {
+    "python": "3.13.5",
+    "go": "go version go1.27.4 darwin/arm64",
+    "node": "v22.17.0",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O"
+  },
+  "task": "T4-status",
+  "lang": "pinion",
+  "run_dir": "/Users/tj.k/orca/projects/AILang/bench/ai/change/runs/T4-status/pinion",
+  "meta": {
+    "started_at": "2026-11-20T09:50:40+0900",
+    "compiler_commit": "3eeec33",
+    "compiler_dirty": false,
+    "task": "T4-status",
+    "baseline": "bench/ai/change/baseline/pinion",
+    "doc_hashes": {
+      "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+      "spec/GUIDE.md": "e9b24066e108",
+      "spec/STDLIB.md": "e9c2404c2c27",
+      "bench/ai/crud/SPEC.md": "95c26e8998f6",
+      "bench/ai/change/T4-status/CHANGE.md": "900ad21c1371"
+    }
+  },
+  "metrics": {
+    "tokens": 37953,
+    "tool_uses": 4,
+    "duration_ms": 47265
+  },
+  "diff": {
+    "start": "/Users/tj.k/orca/projects/AILang/bench/ai/change/baseline/pinion",
+    "files_changed": 1,
+    "lines_added": 26,
+    "lines_removed": 2,
+    "diff_tokens_cl100k": 859,
+    "changed_tokens_cl100k": 423,
+    "unified_diff": "--- a/main.pi\n+++ b/main.pi\n@@ -8,6 +8,7 @@\n   pub author: Str\n   pub year: Int\n   pub tags: List<Str>\n+  pub status: Str\n }\n \n data Fields {\n@@ -66,7 +67,7 @@\n   let title = f.title else { return Err(\"title: required\") }\n   let author = f.author else { return Err(\"author: required\") }\n   let year = f.year else { return Err(\"year: required\") }\n-  Ok(Book(id: id, title: title, author: author, year: year, tags: f.tags ?? []))\n+  Ok(Book(id: id, title: title, author: author, year: year, tags: f.tags ?? [], status: \"available\"))\n }\n \n fn merge(f: Fields, b: Book) -> Book {\n@@ -91,7 +92,24 @@\n     \"count\": json.Json.Int(books.len()),\n     \"by_author\": json.Json.Obj(by_author.freeze().map_values(v => json.Json.Int(v))),\n     \"top_tags\": json.Json.Arr(top),\n+    \"by_status\": json.Json.Obj({\n+      \"available\": json.Json.Int(books.filter(b => b.status == \"available\").len()),\n+      \"borrowed\": json.Json.Int(books.filter(b => b.status == \"borrowed\").len()),\n+      \"lost\": json.Json.Int(books.filter(b => b.status == \"lost\").len()),\n+    }),\n   })\n+}\n+\n+fn valid_status(s: Str) -> Bool {\n+  s == \"available\" || s == \"borrowed\" || s == \"lost\"\n+}\n+\n+fn transition(st: Store, req: http.Request, from: List<Str>, to: Str) -> http.Response {\n+  let b = st.find(path_id(req)) else { return http.error(404, \"not found\") }\n+  if !from.contains(b.status) { return http.error(409, \"book is {b.status}\") }\n+  let n = b.with(status: to)\n+  st.save(n)\n+  http.json(n)\n }\n \n fn app() -> http.App {\n@@ -102,9 +120,12 @@\n     let limit = count_param(req, \"limit\")?\n     let author = req.query.get(\"author\")\n     let tag = req.query.get(\"tag\")\n+    let status = req.query.get(\"status\")\n+    if status.map(x => !valid_status(x)) ?? false { return Err(\"status: must be available, borrowed or lost\") }\n     let xs = st.sorted()\n       .filter(b => author.map(x => b.author == x) ?? true)\n       .filter(b => tag.map(x => b.tags.contains(x)) ?? true)\n+      .filter(b => status.map(x => b.status == x) ?? true)\n       .drop(offset)\n     Ok(http.json(limit.map(n => xs.take(n)) ?? xs))\n   })\n@@ -118,7 +139,7 @@\n   })\n   a.put(\"/books/:id\", req => {\n     let old = st.find(path_id(req)) else { return Ok(http.error(404, \"not found\")) }\n-    let b = complete(fields(req.json_obj()?)?, old.id)?\n+    let b = complete(fields(req.json_obj()?)?, old.id)?.with(status: old.status)\n     st.save(b)\n     Ok(http.json(b))\n   })\n@@ -132,6 +153,9 @@\n     if !st.delete(path_id(req) ?? 0) { return http.error(404, \"not found\") }\n     http.empty(204)\n   })\n+  a.post(\"/books/:id/borrow\", req => transition(st, req, [\"available\"], \"borrowed\"))\n+  a.post(\"/books/:id/return\", req => transition(st, req, [\"borrowed\"], \"available\"))\n+  a.post(\"/books/:id/lost\", req => transition(st, req, [\"available\", \"borrowed\"], \"lost\"))\n   a.get(\"/stats\", req => http.json(stats(st.sorted())))\n   a\n }\n"
+  },
+  "run_cmd": "./server",
+  "build": {
+    "cmd": "\"${PINION:-$(git rev-parse --show-toplevel)/bin/pinion}\" build -o server main.pi",
+    "ok": true,
+    "seconds": 0.06,
+    "output": ""
+  },
+  "test_sha256": "16de796f73a4",
+  "tests": {
+    "passed": 117,
+    "total": 117,
+    "failures": []
+  }
+}

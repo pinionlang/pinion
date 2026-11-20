@@ -1,0 +1,252 @@
+{
+  "T1-isbn/pinion": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 14,
+      "output": 3863,
+      "cache_create": 22643,
+      "cache_read": 209818
+    },
+    "tools": {
+      "bash_other": 3,
+      "calls": 7,
+      "read_docs": 1,
+      "read_spec": 1,
+      "write": 2,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "bash_other",
+      "read_docs+read_spec",
+      "write+run_check",
+      "bash_other",
+      "bash_other",
+      "write+run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "T1-isbn/python": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 12,
+      "output": 3486,
+      "cache_create": 17183,
+      "cache_read": 161583
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 6,
+      "write": 1,
+      "run_check": 3,
+      "bash_other": 1,
+      "build_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "write+run_check",
+      "bash_other",
+      "build_check+run_check",
+      "build_check+run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "T2-persist/pinion": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 12,
+      "output": 2848,
+      "cache_create": 20491,
+      "cache_read": 178609
+    },
+    "tools": {
+      "read_docs": 1,
+      "read_spec": 1,
+      "calls": 6,
+      "bash_other": 2,
+      "write": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_docs+read_spec",
+      "bash_other",
+      "write+run_check",
+      "run_check",
+      "bash_other",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "T2-persist/python": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 8,
+      "output": 1942,
+      "cache_create": 14417,
+      "cache_read": 98192
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 4,
+      "write": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "write+run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "T3-bugfix/pinion": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 10,
+      "output": 2225,
+      "cache_create": 17863,
+      "cache_read": 130739
+    },
+    "tools": {
+      "bash_other": 1,
+      "calls": 5,
+      "read_docs": 1,
+      "write": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "bash_other",
+      "read_docs",
+      "write+run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "T3-bugfix/python": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 6,
+      "output": 1215,
+      "cache_create": 10671,
+      "cache_read": 65395
+    },
+    "tools": {
+      "write": 2,
+      "calls": 3,
+      "build_check": 1,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "write",
+      "write+build_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "T4-status/pinion": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 10,
+      "output": 3031,
+      "cache_create": 20872,
+      "cache_read": 135160
+    },
+    "tools": {
+      "bash_other": 1,
+      "calls": 5,
+      "read_docs": 1,
+      "read_spec": 1,
+      "write": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "bash_other",
+      "read_docs+read_spec",
+      "write+run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "T4-status/python": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 6,
+      "output": 1889,
+      "cache_create": 13665,
+      "cache_read": 67552
+    },
+    "tools": {
+      "read_spec": 1,
+      "write": 2,
+      "calls": 4,
+      "run_check": 1,
+      "bash_other": 1,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec+write",
+      "write+run_check",
+      "bash_other",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "T5-envelope/pinion": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 14,
+      "output": 2456,
+      "cache_create": 14432,
+      "cache_read": 183195
+    },
+    "tools": {
+      "bash_other": 3,
+      "calls": 7,
+      "write": 1,
+      "run_check": 3,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "bash_other",
+      "bash_other",
+      "write+run_check",
+      "run_check",
+      "bash_other",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "T5-envelope/python": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 8,
+      "output": 1304,
+      "cache_create": 12659,
+      "cache_read": 96072
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 4,
+      "write": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "write+run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  }
+}

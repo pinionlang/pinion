@@ -1,0 +1,62 @@
+{
+  "eval_id": "T3-bugfix-python-20261120T095244",
+  "evaluated_at": "2026-11-20T09:52:44+0900",
+  "compiler_commit": "3eeec33",
+  "compiler_dirty": false,
+  "hashes": {
+    "bench/ai/crud/SPEC.md": "95c26e8998f6",
+    "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+    "spec/GUIDE.md": "e9b24066e108",
+    "spec/STDLIB.md": "e9c2404c2c27",
+    "bench/ai/change/PROMPT.md": "28ff79729798",
+    "bench/ai/change/T1-isbn/CHANGE.md": "028e3cff99db",
+    "bench/ai/change/T2-persist/CHANGE.md": "1463cfd2ce58",
+    "bench/ai/change/T3-bugfix/CHANGE.md": "c7c1b646b4de",
+    "bench/ai/change/T4-status/CHANGE.md": "900ad21c1371",
+    "bench/ai/change/T5-envelope/CHANGE.md": "d322bfc25078"
+  },
+  "tools": {
+    "python": "3.13.5",
+    "go": "go version go1.27.4 darwin/arm64",
+    "node": "v22.17.0",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O"
+  },
+  "task": "T3-bugfix",
+  "lang": "python",
+  "run_dir": "/Users/tj.k/orca/projects/AILang/bench/ai/change/runs/T3-bugfix/python",
+  "meta": {
+    "started_at": "2026-11-20T09:50:39+0900",
+    "compiler_commit": "3eeec33",
+    "compiler_dirty": false,
+    "task": "T3-bugfix",
+    "baseline": "bench/ai/change/T3-bugfix/python",
+    "doc_hashes": {
+      "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+      "spec/GUIDE.md": "e9b24066e108",
+      "spec/STDLIB.md": "e9c2404c2c27",
+      "bench/ai/crud/SPEC.md": "95c26e8998f6",
+      "bench/ai/change/T3-bugfix/CHANGE.md": "c7c1b646b4de"
+    }
+  },
+  "metrics": {
+    "tokens": 27739,
+    "tool_uses": 2,
+    "duration_ms": 20811
+  },
+  "diff": {
+    "start": "/Users/tj.k/orca/projects/AILang/bench/ai/change/T3-bugfix/python",
+    "files_changed": 1,
+    "lines_added": 4,
+    "lines_removed": 3,
+    "diff_tokens_cl100k": 477,
+    "changed_tokens_cl100k": 140,
+    "unified_diff": "--- a/main.py\n+++ b/main.py\n@@ -41,9 +41,10 @@\n             q = req.query_params\n             off, lim = nonneg(q.get(\"offset\")), nonneg(q.get(\"limit\"))\n             if off == -1 or lim == -1: return err(400, \"bad limit/offset\")\n-            res = [b for _, b in sorted(books.items())][off or 0:]\n+            res = [b for _, b in sorted(books.items())]\n             if \"author\" in q: res = [b for b in res if b[\"author\"] == q[\"author\"]]\n             if \"tag\" in q: res = [b for b in res if q[\"tag\"] in b[\"tags\"]]\n+            res = res[off or 0:]\n             if lim is not None: res = res[:lim]\n             return res\n         if m == \"POST\":\n@@ -61,7 +62,7 @@\n         for b in books.values():\n             ba[b[\"author\"]] = ba.get(b[\"author\"], 0) + 1\n             for t in set(b[\"tags\"]): tc[t] = tc.get(t, 0) + 1\n-        top = sorted(tc.items(), key=lambda x: (x[1], x[0]), reverse=True)[:3]\n+        top = sorted(tc.items(), key=lambda x: (-x[1], x[0]))[:3]\n         return {\"count\": len(books), \"by_author\": ba, \"top_tags\": [list(x) for x in top]}\n     mm = re.fullmatch(r\"books/([^/]+)\", path)\n     if not mm: return err(404, \"not found\")\n@@ -74,7 +75,7 @@\n         del books[b[\"id\"]]; return Response(status_code=204)\n     d, e = await body(req)\n     if e: return err(400, e)\n-    d, e = validate(d, m == \"PUT\", None if m == \"PUT\" else b)\n+    d, e = validate(d, m == \"PUT\", None if m == \"PUT\" else dict(b))\n     if e: return err(400, e)\n     b.update(d)\n     return b\n"
+  },
+  "run_cmd": "python3 -m uvicorn main:app --host 127.0.0.1 --port $PORT",
+  "test_sha256": "c249c6f801ec",
+  "tests": {
+    "passed": 92,
+    "total": 92,
+    "failures": []
+  }
+}

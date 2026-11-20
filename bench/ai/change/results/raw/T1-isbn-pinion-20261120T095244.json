@@ -1,0 +1,68 @@
+{
+  "eval_id": "T1-isbn-pinion-20261120T095244",
+  "evaluated_at": "2026-11-20T09:52:44+0900",
+  "compiler_commit": "3eeec33",
+  "compiler_dirty": false,
+  "hashes": {
+    "bench/ai/crud/SPEC.md": "95c26e8998f6",
+    "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+    "spec/GUIDE.md": "e9b24066e108",
+    "spec/STDLIB.md": "e9c2404c2c27",
+    "bench/ai/change/PROMPT.md": "28ff79729798",
+    "bench/ai/change/T1-isbn/CHANGE.md": "028e3cff99db",
+    "bench/ai/change/T2-persist/CHANGE.md": "1463cfd2ce58",
+    "bench/ai/change/T3-bugfix/CHANGE.md": "c7c1b646b4de",
+    "bench/ai/change/T4-status/CHANGE.md": "900ad21c1371",
+    "bench/ai/change/T5-envelope/CHANGE.md": "d322bfc25078"
+  },
+  "tools": {
+    "python": "3.13.5",
+    "go": "go version go1.27.4 darwin/arm64",
+    "node": "v22.17.0",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O"
+  },
+  "task": "T1-isbn",
+  "lang": "pinion",
+  "run_dir": "/Users/tj.k/orca/projects/AILang/bench/ai/change/runs/T1-isbn/pinion",
+  "meta": {
+    "started_at": "2026-11-20T09:50:37+0900",
+    "compiler_commit": "3eeec33",
+    "compiler_dirty": false,
+    "task": "T1-isbn",
+    "baseline": "bench/ai/change/baseline/pinion",
+    "doc_hashes": {
+      "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+      "spec/GUIDE.md": "e9b24066e108",
+      "spec/STDLIB.md": "e9c2404c2c27",
+      "bench/ai/crud/SPEC.md": "95c26e8998f6",
+      "bench/ai/change/T1-isbn/CHANGE.md": "028e3cff99db"
+    }
+  },
+  "metrics": {
+    "tokens": 39956,
+    "tool_uses": 6,
+    "duration_ms": 54942
+  },
+  "diff": {
+    "start": "/Users/tj.k/orca/projects/AILang/bench/ai/change/baseline/pinion",
+    "files_changed": 1,
+    "lines_added": 17,
+    "lines_removed": 4,
+    "diff_tokens_cl100k": 1188,
+    "changed_tokens_cl100k": 537,
+    "unified_diff": "--- a/main.pi\n+++ b/main.pi\n@@ -8,6 +8,7 @@\n   pub author: Str\n   pub year: Int\n   pub tags: List<Str>\n+  pub isbn: json.Json\n }\n \n data Fields {\n@@ -15,6 +16,7 @@\n   pub author: Str?\n   pub year: Int?\n   pub tags: List<Str>?\n+  pub isbn: Str?\n }\n \n class Store {\n@@ -29,6 +31,10 @@\n   pub mut fn save(b: Book) { self.books.set(b.id, b) }\n   pub mut fn delete(id: Int) -> Bool { self.books.remove(id).is_some() }\n   pub fn find(id: Int?) -> Book? { self.books.get(id ?? 0) }\n+  pub fn conflict(isbn: Str?, id: Int) -> Bool {\n+    let s = isbn else { return false }\n+    self.books.values().any(b => b.id != id && (b.isbn.as_str().map(x => x == s) ?? false))\n+  }\n   pub fn sorted() -> List<Book> { self.books.values().sort_by(b => b.id) }\n }\n \n@@ -56,21 +62,23 @@\n }\n \n fn fields(b: json.Json) -> Result<Fields, Str> {\n-  b.only([\"title\", \"author\", \"year\", \"tags\"])?\n+  b.only([\"title\", \"author\", \"year\", \"tags\", \"isbn\"])?\n+  let isbn = b.opt_str(\"isbn\")?\n+  if isbn.map(s => !((s.len() == 10 || s.len() == 13) && digits(s))) ?? false { return Err(\"isbn: must be 10 or 13 digits\") }\n   let title = trimmed(b, \"title\")?\n   if title.map(t => t.chars().len() > 200) ?? false { return Err(\"title: at most 200 characters\") }\n-  Ok(Fields(title: title, author: trimmed(b, \"author\")?, year: b.opt_int(\"year\", min: 0, max: 2100)?, tags: b.str_list(\"tags\")?))\n+  Ok(Fields(title: title, author: trimmed(b, \"author\")?, year: b.opt_int(\"year\", min: 0, max: 2100)?, tags: b.str_list(\"tags\")?, isbn: isbn))\n }\n \n fn complete(f: Fields, id: Int) -> Result<Book, Str> {\n   let title = f.title else { return Err(\"title: required\") }\n   let author = f.author else { return Err(\"author: required\") }\n   let year = f.year else { return Err(\"year: required\") }\n-  Ok(Book(id: id, title: title, author: author, year: year, tags: f.tags ?? []))\n+  Ok(Book(id: id, title: title, author: author, year: year, tags: f.tags ?? [], isbn: f.isbn.map(s => json.Json.Str(s)) ?? json.Json.Null))\n }\n \n fn merge(f: Fields, b: Book) -> Book {\n-  b.with(title: f.title ?? b.title, author: f.author ?? b.author, year: f.year ?? b.year, tags: f.tags ?? b.tags)\n+  b.with(title: f.title ?? b.title, author: f.author ?? b.author, year: f.year ?? b.year, tags: f.tags ?? b.tags, isbn: f.isbn.map(s => json.Json.Str(s)) ?? b.isbn)\n }\n \n fn stats(books: List<Book>) -> json.Json {\n@@ -102,14 +110,17 @@\n     let limit = count_param(req, \"limit\")?\n     let author = req.query.get(\"author\")\n     let tag = req.query.get(\"tag\")\n+    let isbn = req.query.get(\"isbn\")\n     let xs = st.sorted()\n       .filter(b => author.map(x => b.author == x) ?? true)\n       .filter(b => tag.map(x => b.tags.contains(x)) ?? true)\n+      .filter(b => isbn.map(x => b.isbn.as_str().map(y => y == x) ?? false) ?? true)\n       .drop(offset)\n     Ok(http.json(limit.map(n => xs.take(n)) ?? xs))\n   })\n   a.post(\"/books\", req => {\n     let b = complete(fields(req.json_obj()?)?, 0)?\n+    if st.conflict(b.isbn.as_str(), 0) { return Ok(http.error(409, \"isbn already exists\")) }\n     Ok(http.json(st.insert(b), status: 201))\n   })\n   a.get(\"/books/:id\", req => {\n@@ -119,12 +130,14 @@\n   a.put(\"/books/:id\", req => {\n     let old = st.find(path_id(req)) else { return Ok(http.error(404, \"not found\")) }\n     let b = complete(fields(req.json_obj()?)?, old.id)?\n+    if st.conflict(b.isbn.as_str(), b.id) { return Ok(http.error(409, \"isbn already exists\")) }\n     st.save(b)\n     Ok(http.json(b))\n   })\n   a.patch(\"/books/:id\", req => {\n     let old = st.find(path_id(req)) else { return Ok(http.error(404, \"not found\")) }\n     let b = merge(fields(req.json_obj()?)?, old)\n+    if st.conflict(b.isbn.as_str(), b.id) { return Ok(http.error(409, \"isbn already exists\")) }\n     st.save(b)\n     Ok(http.json(b))\n   })\n"
+  },
+  "run_cmd": "./server",
+  "build": {
+    "cmd": "\"${PINION:-$(git rev-parse --show-toplevel)/bin/pinion}\" build -o server main.pi",
+    "ok": true,
+    "seconds": 0.06,
+    "output": ""
+  },
+  "test_sha256": "75238171a4c1",
+  "tests": {
+    "passed": 117,
+    "total": 117,
+    "failures": []
+  }
+}

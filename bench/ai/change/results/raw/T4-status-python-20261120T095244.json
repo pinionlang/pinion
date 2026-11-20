@@ -1,0 +1,62 @@
+{
+  "eval_id": "T4-status-python-20261120T095244",
+  "evaluated_at": "2026-11-20T09:52:44+0900",
+  "compiler_commit": "3eeec33",
+  "compiler_dirty": false,
+  "hashes": {
+    "bench/ai/crud/SPEC.md": "95c26e8998f6",
+    "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+    "spec/GUIDE.md": "e9b24066e108",
+    "spec/STDLIB.md": "e9c2404c2c27",
+    "bench/ai/change/PROMPT.md": "28ff79729798",
+    "bench/ai/change/T1-isbn/CHANGE.md": "028e3cff99db",
+    "bench/ai/change/T2-persist/CHANGE.md": "1463cfd2ce58",
+    "bench/ai/change/T3-bugfix/CHANGE.md": "c7c1b646b4de",
+    "bench/ai/change/T4-status/CHANGE.md": "900ad21c1371",
+    "bench/ai/change/T5-envelope/CHANGE.md": "d322bfc25078"
+  },
+  "tools": {
+    "python": "3.13.5",
+    "go": "go version go1.27.4 darwin/arm64",
+    "node": "v22.17.0",
+    "os": "macOS-26.6.2-arm64-arm-64bit-Mach-O"
+  },
+  "task": "T4-status",
+  "lang": "python",
+  "run_dir": "/Users/tj.k/orca/projects/AILang/bench/ai/change/runs/T4-status/python",
+  "meta": {
+    "started_at": "2026-11-20T09:50:40+0900",
+    "compiler_commit": "3eeec33",
+    "compiler_dirty": false,
+    "task": "T4-status",
+    "baseline": "bench/ai/change/baseline/python",
+    "doc_hashes": {
+      "spec/REFERENCE-CARD.md": "db5c977f9eb8",
+      "spec/GUIDE.md": "e9b24066e108",
+      "spec/STDLIB.md": "e9c2404c2c27",
+      "bench/ai/crud/SPEC.md": "95c26e8998f6",
+      "bench/ai/change/T4-status/CHANGE.md": "900ad21c1371"
+    }
+  },
+  "metrics": {
+    "tokens": 30825,
+    "tool_uses": 3,
+    "duration_ms": 26082
+  },
+  "diff": {
+    "start": "/Users/tj.k/orca/projects/AILang/bench/ai/change/baseline/python",
+    "files_changed": 1,
+    "lines_added": 19,
+    "lines_removed": 2,
+    "diff_tokens_cl100k": 835,
+    "changed_tokens_cl100k": 400,
+    "unified_diff": "--- a/main.py\n+++ b/main.py\n@@ -5,6 +5,9 @@\n app = FastAPI()\n books, nxt = {}, [1]\n FIELDS = {\"title\", \"author\", \"year\", \"tags\"}\n+STATUSES = (\"available\", \"borrowed\", \"lost\")\n+ACTIONS = {\"borrow\": ((\"available\",), \"borrowed\"), \"return\": ((\"borrowed\",), \"available\"),\n+           \"lost\": ((\"available\", \"borrowed\"), \"lost\")}\n \n def err(code, msg): return JSONResponse({\"error\": msg}, status_code=code)\n \n@@ -42,6 +45,9 @@\n             res = [b for _, b in sorted(books.items())]\n             if \"author\" in q: res = [b for b in res if b[\"author\"] == q[\"author\"]]\n             if \"tag\" in q: res = [b for b in res if q[\"tag\"] in b[\"tags\"]]\n+            if \"status\" in q:\n+                if q[\"status\"] not in STATUSES: return err(400, \"bad status\")\n+                res = [b for b in res if b[\"status\"] == q[\"status\"]]\n             off, lim = nonneg(q.get(\"offset\")), nonneg(q.get(\"limit\"))\n             if off == -1 or lim == -1: return err(400, \"bad limit/offset\")\n             res = res[off or 0:]\n@@ -52,7 +58,7 @@\n             if e: return err(400, e)\n             d, e = validate(d, True)\n             if e: return err(400, e)\n-            b = {\"id\": nxt[0], **{k: d[k] for k in (\"title\", \"author\", \"year\", \"tags\")}}\n+            b = {\"id\": nxt[0], **{k: d[k] for k in (\"title\", \"author\", \"year\", \"tags\")}, \"status\": \"available\"}\n             books[nxt[0]] = b; nxt[0] += 1\n             return JSONResponse(b, status_code=201)\n         return err(405, \"method not allowed\")\n@@ -63,7 +69,18 @@\n             ba[b[\"author\"]] = ba.get(b[\"author\"], 0) + 1\n             for t in set(b[\"tags\"]): tc[t] = tc.get(t, 0) + 1\n         top = sorted(tc.items(), key=lambda x: (-x[1], x[0]))[:3]\n-        return {\"count\": len(books), \"by_author\": ba, \"top_tags\": [list(x) for x in top]}\n+        return {\"count\": len(books), \"by_author\": ba, \"top_tags\": [list(x) for x in top],\n+                \"by_status\": {st: sum(1 for b in books.values() if b[\"status\"] == st) for st in STATUSES}}\n+    ma = re.fullmatch(r\"books/([^/]+)/(borrow|return|lost)\", path)\n+    if ma:\n+        if m != \"POST\": return err(405, \"method not allowed\")\n+        s = ma.group(1)\n+        b = books.get(int(s)) if s.isdigit() and s.isascii() else None\n+        if b is None: return err(404, \"not found\")\n+        allowed, new = ACTIONS[ma.group(2)]\n+        if b[\"status\"] not in allowed: return err(409, f\"cannot {ma.group(2)} a {b['status']} book\")\n+        b[\"status\"] = new\n+        return b\n     mm = re.fullmatch(r\"books/([^/]+)\", path)\n     if not mm: return err(404, \"not found\")\n     if m not in (\"GET\", \"PUT\", \"PATCH\", \"DELETE\"): return err(405, \"method not allowed\")\n"
+  },
+  "run_cmd": "python3 -m uvicorn main:app --host 127.0.0.1 --port $PORT",
+  "test_sha256": "16de796f73a4",
+  "tests": {
+    "passed": 117,
+    "total": 117,
+    "failures": []
+  }
+}
