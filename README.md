@@ -8,6 +8,7 @@ AI가 작성하고 디버깅하기 쉬운 객체 지향 언어. 확장자는 `.p
 
 - [설계 문서](docs/DESIGN.md): 의미 규칙과 결정 기록
 - [구현 계획](docs/PLAN.md): v0 범위와 마일스톤
+- [벤치마크 보고서](bench/ai/REPORT.md): AI 작성 비용 측정 결과
 - [레퍼런스 카드](spec/REFERENCE-CARD.md): AI 에이전트용 한 장 요약(핵심 규칙, 표준 API, CRUD 예제). 먼저 이것만 읽으면 된다
 - [핵심 가이드](spec/GUIDE.md), [표준 라이브러리](spec/STDLIB.md): 전체 문서
 - [적합성 예제](spec/conformance/): 규칙별 정상·에러·경계 사례
