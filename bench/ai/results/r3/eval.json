@@ -1,5 +1,33 @@
 [
   {
+    "lang": "go",
+    "run_cmd": "./server",
+    "source": {
+      "files": [
+        "rounds/r3/go/main.go"
+      ],
+      "nonblank_lines": 291,
+      "bytes": 6063,
+      "tokens_cl100k": 1974
+    },
+    "build": {
+      "cmd": "go build -o server .",
+      "ok": true,
+      "seconds": 0.53,
+      "output": ""
+    },
+    "tests": {
+      "passed": 74,
+      "total": 74,
+      "failures": []
+    },
+    "metrics": {
+      "tokens": 32011,
+      "tool_uses": 3,
+      "duration_ms": 48406
+    }
+  },
+  {
     "lang": "pinion",
     "run_cmd": "./server",
     "source": {
@@ -13,7 +41,7 @@
     "build": {
       "cmd": "../../../../../bin/pinion build -o server main.pi",
       "ok": true,
-      "seconds": 0.04,
+      "seconds": 0.06,
       "output": ""
     },
     "tests": {
@@ -25,6 +53,56 @@
       "tokens": 36460,
       "tool_uses": 5,
       "duration_ms": 54037
+    }
+  },
+  {
+    "lang": "python",
+    "run_cmd": "python3 server.py",
+    "source": {
+      "files": [
+        "rounds/r3/python/server.py"
+      ],
+      "nonblank_lines": 119,
+      "bytes": 4606,
+      "tokens_cl100k": 1296
+    },
+    "tests": {
+      "passed": 74,
+      "total": 74,
+      "failures": []
+    },
+    "metrics": {
+      "tokens": 30708,
+      "tool_uses": 3,
+      "duration_ms": 42055
+    }
+  },
+  {
+    "lang": "typescript",
+    "run_cmd": "node out/server.js",
+    "source": {
+      "files": [
+        "rounds/r3/typescript/server.ts"
+      ],
+      "nonblank_lines": 100,
+      "bytes": 4894,
+      "tokens_cl100k": 1466
+    },
+    "build": {
+      "cmd": "npx tsc --target es2022 --module commonjs --strict --outDir out server.ts",
+      "ok": true,
+      "seconds": 0.83,
+      "output": ""
+    },
+    "tests": {
+      "passed": 74,
+      "total": 74,
+      "failures": []
+    },
+    "metrics": {
+      "tokens": 32578,
+      "tool_uses": 4,
+      "duration_ms": 53742
     }
   }
 ]

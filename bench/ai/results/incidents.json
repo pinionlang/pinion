@@ -1,0 +1,23 @@
+[
+  {
+    "run": "r2/pinion, r3/pinion",
+    "initial": "0/1 (server did not accept connections) at compiler 01668be..d37697d",
+    "cause": "pinion build -o truncated an existing executable in place; macOS SIGKILLed the new binary (stale code-signature cache). Compiler bug, not the agents' code",
+    "fix": "commit 13df10b: write to a temp file and rename",
+    "rescored": "74/74 each, same agent source unchanged"
+  },
+  {
+    "run": "r1-r3 pinion (v3)",
+    "initial": "74/74",
+    "cause": "all three agents copied the REFERENCE-CARD example's id counter workaround (MutList<Int> grown on every create, id = len()); functionally correct but unbounded growth",
+    "fix": "REFERENCE-CARD example now uses class Store { mut next_id } with a mut fn (not yet re-measured)",
+    "rescored": "n/a"
+  },
+  {
+    "run": "r1-r3 (all languages)",
+    "initial": "provenance recorded at evaluation time, not at agent run time",
+    "cause": "run_eval.py records doc hashes when grading; the Pinion agents read spec/REFERENCE-CARD.md as of commit d37697d, before the example fix",
+    "fix": "future runs must record compiler commit and doc hashes when the agent starts (to do in the run launcher)",
+    "rescored": "n/a"
+  }
+]

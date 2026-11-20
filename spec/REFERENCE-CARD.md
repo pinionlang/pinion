@@ -100,16 +100,26 @@ data Todo {
   pub done: Bool
 }
 
+// State lives in a class; only its mut fn changes it.
+class Store {
+  pub todos: MutMap<Int, Todo> = MutMap<Int, Todo>()
+  mut next_id: Int = 1
+  pub mut fn new_id() -> Int {
+    let id = self.next_id
+    self.next_id += 1
+    id
+  }
+}
+
 fn app() -> http.App {
-  let todos = MutMap<Int, Todo>()
-  let next = MutList<Int>()
+  let st = Store()
+  let todos = st.todos
   let a = http.App()
   a.get("/todos", req => http.json(todos.values()))
   a.post("/todos", req => {
     let b = req.json_obj()?
     b.only(["title", "done"])?
-    next.push(next.len() + 1)
-    let t = Todo(id: next.len(), title: b.req_str("title", min: 1, max: 100)?, done: b.opt_bool("done")? ?? false)
+    let t = Todo(id: st.new_id(), title: b.req_str("title", min: 1, max: 100)?, done: b.opt_bool("done")? ?? false)
     todos.set(t.id, t)
     Ok(http.json(t, status: 201))
   })

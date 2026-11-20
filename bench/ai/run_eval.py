@@ -120,9 +120,51 @@ def main():
         results.append(r)
     out = Path(a.results)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "eval.json").write_text(json.dumps(results, indent=2, ensure_ascii=False))
-    (out / "RESULTS.md").write_text("# CRUD benchmark results\n\n" + table(results))
-    print(table(results))
+    meta = provenance()
+    # Append-only raw records: one file per (run dir, evaluation).
+    raw = HERE / "results" / "raw"
+    raw.mkdir(parents=True, exist_ok=True)
+    stamp = time.strftime("%Y%m%dT%H%M%S")
+    for r in results:
+        rid = f"{Path(a.runs).name}-{r['lang']}-{stamp}"
+        rec = {"eval_id": rid, "round": Path(a.runs).name, "runs_dir": str(Path(a.runs)), **meta, **r}
+        (raw / f"{rid}.json").write_text(json.dumps(rec, indent=2, ensure_ascii=False))
+    # eval.json is a merged view keyed by lang, so --only never drops other languages.
+    merged = {}
+    ev = out / "eval.json"
+    if ev.exists():
+        for r in json.loads(ev.read_text()):
+            merged[r["lang"]] = r
+    for r in results:
+        merged[r["lang"]] = r
+    allr = [merged[k] for k in sorted(merged)]
+    ev.write_text(json.dumps(allr, indent=2, ensure_ascii=False))
+    (out / "RESULTS.md").write_text("# CRUD benchmark results\n\n" + table(allr))
+    print(table(allr))
+
+
+def provenance():
+    """Facts needed to reproduce an evaluation."""
+    import hashlib, platform
+    root = HERE.parent.parent
+
+    def sh(cmd):
+        try:
+            return subprocess.run(cmd, cwd=root, capture_output=True, text=True, timeout=30).stdout.strip()
+        except Exception:
+            return ""
+
+    def h(p):
+        f = root / p
+        return hashlib.sha256(f.read_bytes()).hexdigest()[:12] if f.exists() else None
+
+    return {
+        "evaluated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "compiler_commit": sh(["git", "rev-parse", "--short", "HEAD"]),
+        "compiler_dirty": bool(sh(["git", "status", "--porcelain", "--", "cmd", "internal", "runtime"])),
+        "hashes": {p: h(p) for p in ["bench/ai/crud/SPEC.md", "bench/ai/crud/test_api.py", "spec/REFERENCE-CARD.md", "spec/GUIDE.md", "spec/STDLIB.md"]},
+        "tools": {"python": platform.python_version(), "go": sh(["go", "version"]), "node": sh(["node", "--version"]), "os": platform.platform()},
+    }
 
 
 if __name__ == "__main__":

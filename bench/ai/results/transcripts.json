@@ -1,0 +1,358 @@
+{
+  "r1/go": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 8,
+      "output": 5176,
+      "cache_create": 13715,
+      "cache_read": 87265
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 4,
+      "write": 1,
+      "build_check": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "write+build_check+run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "r1/pinion": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 12,
+      "output": 4532,
+      "cache_create": 19603,
+      "cache_read": 169425
+    },
+    "tools": {
+      "read_docs": 2,
+      "read_spec": 1,
+      "calls": 6,
+      "write": 2,
+      "build_check": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_docs+read_spec",
+      "read_docs",
+      "write+build_check",
+      "write+run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "r1/python": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 8,
+      "output": 3550,
+      "cache_create": 13135,
+      "cache_read": 86932
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 4,
+      "write": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "write+run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "r1/typescript": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 6,
+      "output": 3230,
+      "cache_create": 11868,
+      "cache_read": 59613
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 3,
+      "write": 1,
+      "build_check": 1,
+      "run_check": 1,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "write+build_check+run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "r2/go": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 8,
+      "output": 5002,
+      "cache_create": 31687,
+      "cache_read": 80922
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 4,
+      "write": 1,
+      "build_check": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "write+build_check+run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "r2/pinion": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 12,
+      "output": 4633,
+      "cache_create": 19820,
+      "cache_read": 170170
+    },
+    "tools": {
+      "read_docs": 2,
+      "read_spec": 1,
+      "calls": 6,
+      "write": 3,
+      "build_check": 3,
+      "run_check": 1,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_docs+read_spec",
+      "read_docs",
+      "write+build_check",
+      "write+build_check+run_check",
+      "write+build_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 1
+  },
+  "r2/python": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 6,
+      "output": 3038,
+      "cache_create": 29606,
+      "cache_read": 49889
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 3,
+      "write": 1,
+      "run_check": 1,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "write+run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "r2/typescript": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 8,
+      "output": 4271,
+      "cache_create": 30888,
+      "cache_read": 79985
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 4,
+      "write": 2,
+      "build_check": 2,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "write+build_check+run_check",
+      "write+build_check+run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 1
+  },
+  "r3/go": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 8,
+      "output": 4607,
+      "cache_create": 14930,
+      "cache_read": 97520
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 4,
+      "write": 1,
+      "build_check": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "write+build_check+run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "r3/pinion": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 12,
+      "output": 4081,
+      "cache_create": 19340,
+      "cache_read": 168313
+    },
+    "tools": {
+      "read_docs": 2,
+      "read_spec": 1,
+      "calls": 6,
+      "write": 1,
+      "build_check": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_docs+read_spec",
+      "read_docs",
+      "write+build_check",
+      "run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "r3/python": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 8,
+      "output": 3471,
+      "cache_create": 13628,
+      "cache_read": 96192
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 4,
+      "write": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "write+run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 0
+  },
+  "r3/typescript": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 10,
+      "output": 4605,
+      "cache_create": 15349,
+      "cache_read": 127673
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 5,
+      "write": 2,
+      "build_check": 2,
+      "run_check": 3,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "write+build_check+run_check",
+      "write+build_check+run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 2
+  },
+  "v1/pinion": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 26,
+      "output": 11690,
+      "cache_create": 37426,
+      "cache_read": 498144
+    },
+    "tools": {
+      "read_docs": 5,
+      "read_spec": 1,
+      "calls": 13,
+      "write": 5,
+      "build_check": 5,
+      "run_check": 3,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_docs+read_spec",
+      "read_docs",
+      "read_docs",
+      "read_docs",
+      "read_docs+write+build_check",
+      "build_check",
+      "write",
+      "write+build_check",
+      "write+build_check",
+      "write+build_check+run_check",
+      "run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 3
+  },
+  "v2/pinion": {
+    "model": "bedrock-claude-opus-5-5",
+    "usage": {
+      "input": 16,
+      "output": 5507,
+      "cache_create": 25348,
+      "cache_read": 238749
+    },
+    "tools": {
+      "read_spec": 1,
+      "calls": 8,
+      "read_docs": 2,
+      "write": 2,
+      "build_check": 1,
+      "run_check": 2,
+      "other:SubagentHandback": 1
+    },
+    "sequence": [
+      "read_spec",
+      "read_docs",
+      "read_docs",
+      "write+build_check",
+      "write",
+      "run_check",
+      "run_check",
+      "other:SubagentHandback"
+    ],
+    "build_errors": 1
+  }
+}

@@ -13,7 +13,7 @@
     "build": {
       "cmd": "go build -o server .",
       "ok": true,
-      "seconds": 0.54,
+      "seconds": 0.45,
       "output": ""
     },
     "tests": {
@@ -91,7 +91,7 @@
     "build": {
       "cmd": "npx tsc --target es2022 --module commonjs --lib es2022,dom --outDir out server.ts",
       "ok": true,
-      "seconds": 1.03,
+      "seconds": 1.08,
       "output": ""
     },
     "tests": {
